@@ -2897,3 +2897,9 @@ body {
     bottom: 8px;
   }
 }
+/* 모바일: 이모티콘 패널을 오른쪽으로 32px 이동 */
+@media (max-width: 768px) {
+  #emojiPanel {
+    right: -82px;
+  }
+}
