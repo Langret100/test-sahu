@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구구단 게임 🚀</title>
+    <style>
+        /*
+         * CSS 스타일링
+         */
+        body {
+            font-family: 'Arial', sans-serif;
+            /* 화면을 꽉 채우도록 수정 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* 헤더가 위로 가도록 */
+            min-height: 100vh; /* 최소 높이를 100vh로 설정 */
+            width: 100vw; /* 너비 100% */
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            overflow: hidden;
+            box-sizing: border-box; /* 패딩과 보더가 width/height에 포함되도록 */
+        }
+        #game-container {
+            /* PC/모바일 모두 화면 전체를 꽉 채우도록 수정 */
+            width: 100vw; 
+            height: calc(100vh - 8vh); /* 헤더 높이를 제외한 나머지 공간 */
+            position: relative;
+            /* max-width 제거: 화면 전체 사용 */
+            border: 2px solid #333;
+            background-color: #e0f2f7; /* 밝은 배경 */
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        #header {
+            width: 100%;
+            height: 8vh; /* 헤더 높이를 화면 크기에 비례하게 설정 */
+            padding: 0 10px; /* 좌우 패딩 추가 */
+            background-color: #3f51b5;
+            color: white;
+            text-align: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        #question {
+            font-size: 2.2em;
+            margin: 0;
+        }
+        #timer-display {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.8em;
+        }
+        #timer-bar-container {
+            width: 100px; /* 타이머 바 너비 조정 */
+            height: 15px; /* 타이머 바 높이 조정 */
+            background-color: #e0e0e0;
+            border: 1px solid #ccc;
+            margin-top: 5px;
+        }
+        #timer-bar {
+            height: 100%;
+            width: 100%;
+            background-color: #ff9800;
+            transition: width 0.1s linear;
+        }
+        /* 알록달록한 공 기본 스타일 */
+        .answer-ball {
+            position: absolute;
+            /* bottom은 JS에서 설정 (GROUND_HEIGHT - BALL_SIZE/2) */
+            width: 84px; /* 70px * 1.2 = 84px */
+            height: 84px; /* 70px * 1.2 = 84px */
+            border-radius: 50%;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.1em; /* 글씨 크기 1.2배 */
+            cursor: pointer;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4); 
+            transition: transform 0.1s; 
+            z-index: 10;
+            border: 2px solid rgba(255, 255, 255, 0.7); 
+            will-change: bottom, transform;
+            box-sizing: border-box; 
+        }
+        .answer-ball.answer-correct {
+            background-color: #4CAF50 !important;
+        }
+
+        .answer-ball::before { 
+            content: '';
+            position: absolute;
+            top: 6px; /* 5px * 1.2 = 6px */
+            left: 6px; /* 5px * 1.2 = 6px */
+            width: 60%;
+            height: 60%;
+            border-radius: 50%;
+            background: radial-gradient(circle at top left, rgba(255,255,255,0.8), rgba(255,255,255,0));
+            opacity: 0.7;
+        }
+        .answer-ball:hover {
+            transform: scale(1.08); 
+        }
+
+        /* 바닥 쌓인 공 표현 */
+        #ground-pile {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%; /* 화면 끝에서 끝까지 바구니 */
+            height: 150px; /* 바구니 높이를 조금 낮춤 */
+            overflow: hidden;
+            z-index: 0;
+            background: linear-gradient(to top, #8d6e63, #a1887f);
+            border-radius: 25px 25px 0 0;
+            
+        }
+        #ground-pile::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 5%;
+            width: 90%;
+            height: 20px;
+            border-radius: 15px;
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(255,255,255,0.7) 0,
+                rgba(255,255,255,0.7) 10px,
+                rgba(255,255,255,0.1) 10px,
+                rgba(255,255,255,0.1) 20px
+            );
+            
+        }
+        #ground-pile::after {
+            content: '';
+            position: absolute;
+            bottom: 8px;
+            left: 10%;
+            width: 80%;
+            height: 16px;
+            border-radius: 10px;
+            background: rgba(62,39,35,0.35);
+        }
+        .ground-pile-ball {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.6;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.4); 
+            border: 1px solid rgba(255, 255, 255, 0.5); 
+            box-sizing: border-box;
+            /* z-index는 JS에서 랜덤으로 부여됨 */
+        }
+
+        /* 게임 오버/시작 화면 스타일 */
+        #game-over-screen {
+            position: fixed; /* 전체 화면을 덮도록 fixed로 변경 */
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.9); /* 배경색을 더 어둡게 */
+            color: white;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            z-index: 30; /* 가장 위로 올림 */
+            text-align: center;
+        }
+        #game-over-screen button {
+            padding: 12px 25px; 
+            font-size: 1em; 
+            margin-top: 25px;
+            cursor: pointer;
+            border: none;
+            background-color: #3f51b5;
+            color: white;
+            border-radius: 8px; 
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        #game-over-screen button:hover {
+            background-color: #5c6bc0;
+            transform: scale(1.05);
+        }
+        #current-limit {
+            font-size: 0.8em;
+            color: #ccc;
+            margin-top: 5px;
+        }
+        /* 추가된 설명 스타일 */
+        #start-instruction {
+            font-size: 1.2em;
+            color: #ccc;
+            margin-bottom: 15px; 
+            font-weight: normal;
+        }
+        #game-title {
+            font-size: 2.5em; 
+            margin-bottom: 10px;
+        }
+        
+        /* 모바일 환경 최적화 */
+        @media (max-width: 600px) {
+            #game-container {
+                height: calc(100vh - 60px); /* 모바일 헤더 높이를 약 60px로 가정 */
+            }
+            #header {
+                height: 60px; /* 모바일 헤더 높이 고정 */
+                font-size: 1.2em;
+            }
+            #question {
+                font-size: 1.8em; /* 모바일 질문 글씨 크기 조정 */
+            }
+            .answer-ball {
+                width: 72px; /* 60px * 1.2 = 72px */
+                height: 72px;
+                font-size: 1.8em; /* 글씨 크기 1.2배 */
+            }
+            #game-over-screen {
+                font-size: 1.5em; /* 모바일 게임 오버 화면 글씨 크기 조정 */
+            }
+        }
+    </style>
+    <script src="../js/game-ghost.js"></script>
+
+</head>
+<body>
+
+    <div id="header">
+        <div>점수: <span id="score">0</span></div>
+        <div id="question">? x ? = ?</div>
+        <div id="timer-display">
+            제한 시간: <div id="timer-bar-container"><div id="timer-bar"></div></div>
+            <div id="current-limit"></div>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div id="ground-pile"></div>
+    </div>
+
+    <div id="game-over-screen">
+        <div id="game-title">
+            구구단 게임
+        </div>
+        <div id="start-instruction">
+            -정답을 찾아 눌러요!-
+        </div>
+        <div id="final-score">최종 점수: 0</div>
+        <button onclick="startGame()">시작</button>
+    </div>
+
+    <script src="../js/game-ranking-report.js"></script>
+<script>
+        //
+        // JavaScript 게임 로직
+        //
+        const INITIAL_DURATION = 5000;
+        const DURATION_DECREMENT = 400;
+        const DECREMENT_INTERVAL = 20;
+
+        const BALL_SIZE = 84; 
+        const GROUND_HEIGHT = 200; 
+        const BALL_START_BOTTOM = GROUND_HEIGHT - (BALL_SIZE / 2); // 공의 중심이 바닥 위에 있는 위치
+
+        let currentLimit = INITIAL_DURATION;
+        let currentScore = 0;
+        let correctAnswer = 0;
+        let isGameOver = true;
+        let timerInterval;
+        let questionTimeout;
+        let activeBalls = []; // 현재 화면에 떠 있는 공들을 관리하는 배열
+
+        const gameContainer = document.getElementById('game-container');
+        const questionElement = document.getElementById('question');
+        const scoreElement = document.getElementById('score');
+        const timerBar = document.getElementById('timer-bar');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreElement = document.getElementById('final-score');
+        const groundPile = document.getElementById('ground-pile');
+        const currentLimitDisplay = document.getElementById('current-limit');
+        
+        // --- 유틸리티 함수 ---
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+        function getRandomFactor() {
+            return getRandomInt(1, 9);
+        }
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[i], array[j]];
+            }
+            return array;
+        }
+        function getRandomColor() {
+            const colors = [
+                '#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5',
+                '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50',
+                '#8bc34a', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'
+            ];
+            return colors[getRandomInt(0, colors.length - 1)];
+        }
+
+        // --- 게임 핵심 로직 ---
+
+        function updateGameLimit() {
+            if (currentScore > 0 && currentScore % DECREMENT_INTERVAL === 0) {
+                currentLimit = Math.max(3000, currentLimit - DURATION_DECREMENT);
+            }
+            currentLimitDisplay.textContent = `제한: ${(currentLimit / 1000).toFixed(1)}초`;
+        }
+
+        function newQuestion() {
+            if (isGameOver) return;
+            
+            updateGameLimit();
+            scoreElement.textContent = currentScore;
+
+            const num1 = getRandomFactor();
+            const num2 = getRandomFactor();
+            correctAnswer = num1 * num2;
+            questionElement.textContent = `${num1} x ${num2} = ?`;
+
+            const answers = generateAnswers(correctAnswer);
+
+            resetTimer();
+            startTimer(currentLimit);
+
+            // 공 생성 및 애니메이션 시작
+            createBalls(answers);
+
+            questionTimeout = setTimeout(() => {
+                if (!isGameOver) {
+                    endGame(false);
+                }
+            }, currentLimit);
+        }
+
+        function generateAnswers(correct) {
+            const answers = [correct];
+            const maxWrongAnswers = 4;
+            let count = 0;
+
+            while (count < maxWrongAnswers) {
+                let wrong = getRandomInt(1, 81);
+                if (wrong !== correct && !answers.includes(wrong)) {
+                    answers.push(wrong);
+                    count++;
+                }
+            }
+            return shuffleArray(answers.slice(0, getRandomInt(4, 5)));
+        }
+
+        // 공 생성 및 애니메이션 설정 (겹치지 않게 배치 로직 및 부상 애니메이션 적용)
+        function createBalls(answers) {
+            stopAllBalls(); // 기존 공 모두 중지 및 제거
+            activeBalls = [];
+            
+            const containerWidth = gameContainer.clientWidth;
+            const positions = []; // 이미 배치된 공들의 x 위치 저장
+            const containerHeight = gameContainer.clientHeight;
+            // BALL_START_BOTTOM은 GROUND_HEIGHT와 BALL_SIZE에 따라 계산됨
+            const maxRiseHeight = containerHeight - BALL_START_BOTTOM + BALL_SIZE; // 공이 화면 밖으로 완전히 나갈 높이
+
+            answers.forEach((ans, index) => {
+                const ball = document.createElement('div');
+                ball.classList.add('answer-ball');
+                ball.textContent = ans;
+                ball.dataset.value = ans;
+                ball.style.backgroundColor = getRandomColor();
+                
+                // 겹치지 않게 공 위치 찾기
+                let randomX;
+                let isOverlapping;
+                let attempts = 0;
+                const minDistance = BALL_SIZE + 10; // 공 간의 최소 거리
+                
+                do {
+                    isOverlapping = false;
+                    randomX = getRandomInt(0, containerWidth - BALL_SIZE);
+
+                    for (const pos of positions) {
+                        if (Math.abs(randomX - pos) < minDistance) {
+                            isOverlapping = true;
+                            break;
+                        }
+                    }
+                    attempts++;
+                } while (isOverlapping && attempts < 100); // 100번 시도 후에도 겹치면 그냥 배치
+
+                ball.style.left = `${randomX}px`;
+                // 시작 위치: 바닥 바로 위
+                ball.style.bottom = `${BALL_START_BOTTOM}px`; 
+                positions.push(randomX); // 배치된 위치 기록
+
+                ball.addEventListener('click', handleAnswerClick);
+                gameContainer.appendChild(ball);
+                activeBalls.push(ball);
+
+                const duration = getRandomInt(4000, 7000); // 공이 위로 올라가는 총 시간
+                
+                // requestAnimationFrame을 이용한 부상 애니메이션
+                let animationFrameId;
+                const startTime = performance.now();
+
+
+                function animateBallUp(timestamp) {
+                    if (isGameOver || !ball.parentElement) {
+                        cancelAnimationFrame(animationFrameId);
+                        return;
+                    }
+                    
+                    const elapsed = timestamp - startTime;
+                    // 시간을 0부터 1까지의 비율로 정규화
+                    let progress = elapsed / duration; 
+
+                    if (progress < 1) {
+                        const newBottom = BALL_START_BOTTOM + maxRiseHeight * progress;
+                        
+                        ball.style.bottom = `${newBottom}px`;
+                        animationFrameId = requestAnimationFrame(animateBallUp);
+                    } else {
+                        // 화면 밖으로 완전히 사라짐 처리
+                        ball.removeEventListener('click', handleAnswerClick);
+                        ball.remove();
+                        activeBalls = activeBalls.filter(b => b !== ball);
+                    }
+                }
+                ball.dataset.animationId = requestAnimationFrame(animateBallUp);
+            });
+        }
+
+        function stopAllBalls() {
+            activeBalls.forEach(ball => {
+                const animationId = ball.dataset.animationId;
+                if (animationId) {
+                    cancelAnimationFrame(parseInt(animationId));
+                }
+                ball.removeEventListener('click', handleAnswerClick);
+                ball.remove();
+            });
+            activeBalls = [];
+        }
+
+        // 정답 시 공들을 떨어뜨리는 애니메이션 (바운스 없이 낙하 후 페이드아웃)
+        function dropAllBalls() {
+            const ballsToDrop = [...activeBalls];
+            activeBalls = [];
+            
+            const DROP_TIME = 400; // 낙하에 걸리는 시간 (0.4초)
+            const FADE_TIME = 200; // 페이드아웃에 걸리는 시간 (0.2초)
+            // 공이 완전히 멈춰야 할 바닥 위치
+            const targetBottom = BALL_START_BOTTOM; 
+
+            ballsToDrop.forEach(ball => {
+                const animationId = ball.dataset.animationId;
+                if (animationId) {
+                    cancelAnimationFrame(parseInt(animationId));
+                }
+                ball.removeEventListener('click', handleAnswerClick);
+
+                // 1. 낙하 준비: 현재 위치와 낙하 속성 설정
+                // cubic-bezier(0.3, 0.5, 0.5, 1)는 점점 빨라지는 가속 효과를 줍니다. (중력 느낌)
+                ball.style.transition = `bottom ${DROP_TIME}ms cubic-bezier(0.3, 0.5, 0.5, 1)`; 
+                
+                // 2. 낙하 실행
+                ball.style.bottom = `${targetBottom}px`;
+
+                // 3. 낙하 완료 후 페이드아웃 및 제거
+                setTimeout(() => {
+                    // bottom transition을 덮어쓰지 않고 opacity와 transform에만 적용
+                    ball.style.transition = `opacity ${FADE_TIME}ms ease-out, transform ${FADE_TIME}ms ease-out`;
+                    ball.style.opacity = '0';
+                    ball.style.transform = 'scale(0.8)'; // 작아지는 효과
+
+                    // DOM에서 최종 제거
+                    setTimeout(() => {
+                        ball.remove();
+                    }, FADE_TIME);
+                }, DROP_TIME);
+            });
+        }
+        
+        // --- 타이머 로직 ---
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerBar.style.width = '100%';
+            timerBar.style.backgroundColor = '#ff9800';
+        }
+
+        function startTimer(duration) {
+            let timeLeft = duration;
+            const startTime = performance.now();
+
+            timerInterval = setInterval(() => {
+                const elapsedTime = performance.now() - startTime;
+                timeLeft = duration - elapsedTime;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timerBar.style.width = '0%';
+                    endGame(false);
+                    return;
+                }
+
+                const percentage = (timeLeft / duration) * 100;
+                timerBar.style.width = `${percentage}%`;
+                
+                if (percentage < 25) {
+                    timerBar.style.backgroundColor = '#f44336';
+                } else if (percentage < 50) {
+                    timerBar.style.backgroundColor = '#ffc107';
+                }
+
+            }, 50);
+        }
+        
+        // --- 이벤트 핸들러 ---
+
+        function handleAnswerClick(event) {
+            if (isGameOver) return;
+
+            const selectedAnswer = parseInt(event.target.dataset.value);
+            
+            if (selectedAnswer === correctAnswer) {
+                // [옵션] 게임용 고스트: 정답 맞췄을 때 기쁨 표현
+                if (window.gameGhostUI && typeof window.gameGhostUI.react === "function") {
+                    try { window.gameGhostUI.react("correct"); } catch(e) {}
+                }
+
+                currentScore += 10;
+                // 정답 공은 초록색 강조 클래스 부여
+                event.target.classList.add('answer-correct');
+                
+                // 나머지 공의 애니메이션 및 타이머를 중지
+                clearTimeout(questionTimeout);
+                dropAllBalls(); // 공들을 낙하 및 페이드아웃 시작
+                
+                // 공이 사라지는 시간을 고려하여 다음 문제 시작 (0.4초 낙하 + 0.2초 페이드아웃)
+                setTimeout(() => {
+                    newQuestion();
+                }, 700); // 0.7초 후 다음 문제 시작
+
+            } else {
+                event.target.style.backgroundColor = '#f44336';
+                endGame(false);
+            }
+        }
+
+        // --- 게임 상태 관리 ---
+
+        function startGame() {
+            // [옵션] 게임용 고스트: 게임 시작 반응 (game-ghost.js 삭제 시 이 블럭도 함께 삭제 가능)
+            if (window.gameGhostUI && typeof window.gameGhostUI.react === "function") {
+                try { window.gameGhostUI.react("start"); } catch(e) {}
+            }
+
+            currentLimit = INITIAL_DURATION;
+            currentScore = 0;
+            isGameOver = false;
+            gameOverScreen.style.display = 'none';
+            scoreElement.textContent = '0';
+            
+            clearInterval(timerInterval);
+            clearTimeout(questionTimeout);
+            stopAllBalls();
+            
+            newQuestion();
+        }
+
+        function endGame(isWin) {
+            // ✅ 게임 랭킹 연동: 구구단게임 점수 전송 (부모 창으로 메시지 전송)
+            try {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                  type: "GAME_SCORE",
+                  gameName: "구구단게임",
+                  score: currentScore
+                }, "*");
+              }
+            } catch(e) {}
+
+            // [옵션] 게임용 고스트: 게임 오버/실패 반응
+            if (!isWin && window.gameGhostUI && typeof window.gameGhostUI.react === "function") {
+                try { window.gameGhostUI.react("gameover"); } catch(e) {}
+            }
+
+            isGameOver = true;
+            clearInterval(timerInterval);
+            clearTimeout(questionTimeout);
+            stopAllBalls();
+
+            gameOverScreen.style.display = 'flex';
+            document.getElementById('game-title').textContent = '게임 오버! 😭';
+            document.getElementById('start-instruction').style.display = 'none';
+            finalScoreElement.textContent = `최종 점수: ${currentScore}`;
+            gameOverScreen.querySelector('button').textContent = '다시 시작';
+        }
+
+        // 바닥에 쌓인 공 시각적 표현 생성 (알록달록, 꽉 차게)
+        function createGroundPile() {
+            // 성능 개선을 위해 더 이상 바닥 구슬 DOM을 생성하지 않습니다.
+            // 바닥은 CSS로만 바구니처럼 표현합니다.
+        }
+
+        // 페이지 로드 후 게임 시작 안내 및 바닥 공 생성
+        document.addEventListener('DOMContentLoaded', () => {
+            gameOverScreen.style.display = 'flex';
+            document.getElementById('game-title').textContent = '구구단 게임';
+            document.getElementById('start-instruction').style.display = 'block';
+            finalScoreElement.textContent = '';
+            gameOverScreen.querySelector('button').textContent = '시작';
+            
+            // DOMContentLoaded 시점에는 gameContainer 크기가 확정되지 않았을 수 있어
+            // resize 이벤트나, setTimeout으로 늦게 실행하는 것이 더 안정적입니다.
+            setTimeout(createGroundPile, 100); 
+        });
+
+    </script>
+
+
+
+</body>
+</html>

@@ -1,0 +1,3027 @@
+
+
+/* ===== 전역 선택/하이라이트 방지 =====
+   - 긴 터치/클릭 시 파란 선택 영역 및 기본 터치 하이라이트를 숨깁니다.
+   - 텍스트 복사가 필요해지면, 해당 영역에 user-select:auto;를 다시 지정해 주세요.
+*/
+html, body, body * {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 입력/텍스트 영역에서는 선택/복사를 허용합니다. */
+input, textarea, [contenteditable="true"] {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+:root {
+      --wave-duration-slow: 22s;
+      --wave-duration-fast: 12s;
+      --wave-amplitude-normal: 1;
+      --wave-amplitude: 1;
+      --wave-amplitude-boost: 1.8;
+      --bubble-max-width: 372px;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: -apple-system,BlinkMacSystemFont,"Noto Sans KR",system-ui,sans-serif;
+      background-color: #0b1623;
+    }
+    #canvasWrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+    }
+
+        /* SVG 두 줄 물결 배경 - 단순 부드러운 흐름 버전 */
+    #waveBackground {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: -20;
+      opacity: 0;
+    }
+    .wave-svg {
+      position: absolute;
+      width: 200%;
+      height: 140px;
+      left: -50%;
+      fill: none;
+      stroke-linecap: round;
+      stroke-width: 1.5;
+      will-change: transform;
+      animation: waveMoveSlow 22s linear infinite;
+    }
+    .wave-svg.wave1 {
+      top: calc(50% - 40px);
+      stroke: rgba(255,255,255,0.24);
+    }
+    .wave-svg.wave2 {
+      top: calc(50% - 10px);
+      stroke: rgba(144,224,239,0.18);
+      animation: waveMoveFast 28s linear infinite;
+    }
+
+    @keyframes waveMoveSlow {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-25%); }
+    }
+    @keyframes waveMoveFast {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-35%); }
+    }
+
+/* 고스트 영역 */
+    #ghostContainer {
+      position: absolute;
+      right: 2vw;
+      bottom: 0;
+      width: min(35vw, 480px);
+      height: min(35vw, 480px);
+      z-index: 2;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    /* PC 게임 모드에서 고스트를 화면 오른쪽으로 조금 더 붙이기 */
+    
+body.is-game-mode #ghostContainer {
+  right: 0;
+  display: none;
+}
+
+    #ghost {
+      width: 660px;
+      height: 660px;
+      position: relative;
+      pointer-events: auto;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-drag: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.15s ease-out;
+    }
+    #ghost img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      -webkit-touch-callout: none;
+      display: none;
+    }
+    #ghost img.active {
+      display: block;
+    }
+
+    #ghost.stretch-big img.active {
+      transform: scale(2.0);
+    }
+
+    #ghost.shake {
+      animation: ghostShake 0.2s ease-in-out 2;
+    }
+    #ghost.sleepy {
+      filter: brightness(0.95);
+    }
+    @keyframes ghostShake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-4px); }
+      100% { transform: translateX(0); }
+    }
+
+    /* 말풍선 */
+    #bubbleWrapper {
+      position: absolute;
+      right: 460px;
+      bottom: 480px;
+      z-index: 3;
+      max-width: var(--bubble-max-width);
+      pointer-events: none;
+    }
+    .bubble {
+      position: relative;
+      display: inline-block;
+      padding: 12px 18px;
+      border-radius: 19px;
+      background: rgba(255,255,255,0.98);
+      color: #222;
+      font-size: 16px;
+      line-height: 1.5;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.18);
+      border: 1px solid rgba(0,0,0,0.08);
+      word-wrap: break-word;
+      word-break: keep-all;
+    }
+    .bubble::after {
+      content: "";
+      position: absolute;
+      right: -8px;
+      bottom: 10px;
+      width: 14px;
+      height: 14px;
+      background: rgba(255,255,255,0.98);
+      border-right: 1px solid rgba(0,0,0,0.08);
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      transform: rotate(45deg);
+      box-shadow: 4px 4px 10px rgba(0,0,0,0.12);
+    }
+    #bubbleText {
+      white-space: pre-wrap;
+    }
+    #bubbleWrapper.hidden {
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+    }
+    #bubbleWrapper.visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+    }
+
+    /* 채팅 도크 */
+    #chatDock {
+      position: absolute;
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      width: min(720px, 98vw);
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #chatPanel {
+      background: rgba(9,13,30,0.82);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.16);
+      padding: 10px 12px 8px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+    
+      position: relative;
+    }
+    #log {
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 3px 5px 8px;
+      margin-bottom: 4px;
+      font-size: 13px;
+      color: #e0e6ff;
+    }
+    .log-line {
+      margin-bottom: 2px;
+      opacity: 0.8;
+    }
+    .log-line span.role {
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    #inputRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #userInput {
+      flex: 1;
+      min-width: 0;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.24);
+      background: rgba(6,11,23,0.9);
+      color: #f5f7ff;
+      padding: 9px 16px;
+      font-size: 16px;
+      outline: none;
+    }
+    #userInput::placeholder {
+      color: rgba(199,210,255,0.6);
+    }
+    #sendBtn {
+      border-radius: 999px;
+      border: none;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      background: linear-gradient(135deg,#4f46e5,#7c3aed);
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 4px 16px rgba(65,60,190,0.6);
+    }
+    #sendBtn:hover {
+      filter: brightness(1.02);
+      transform: translateY(-1px);
+    }
+    #sendBtn:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(65,60,190,0.5);
+    }
+
+
+    /* 이모티콘 버튼 및 패널 */
+    .emoji-wrapper {
+      position: relative;
+      display: none;
+    }
+    #chatPanel.chat-panel-social .emoji-wrapper {
+      display: inline-flex;
+    }
+    .emoji-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.26);
+      background: rgba(6,11,23,0.9);
+      color: #e5e7ff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+    }
+    .emoji-btn:hover {
+      background: rgba(18,26,54,0.95);
+    }
+
+    #emojiPanel {
+      position: absolute;
+      right: -50px;
+      bottom: 40px;
+      /* 이모티콘이 창 밖으로 삐져나오지 않도록 넉넉한 폭 확보 (플러스 메뉴 폭과 분리) */
+      width: 340px;
+      max-width: min(340px, 92vw);
+      background: rgba(9,13,30,0.98);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+      padding: 8px;
+      display: none;
+      z-index: 11;
+    
+      max-height: 320px;
+      overflow: auto;
+    }
+    #emojiPanel.open {
+      display: block;
+    }
+    .emoji-grid {
+      display: grid;
+      /* 72px 이모티콘 4개가 안전하게 들어가도록 고정 그리드 */
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      justify-content: stretch;
+    }
+
+    .emoji-item {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      height: auto;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    /* 화면이 좁을 때는 그리드를 유연하게(창 밖으로 튀어나오지 않도록) */
+    @media (max-width: 720px) {
+      #emojiPanel { right: 0; }
+    }
+
+    @media (max-width: 420px) {
+      #emojiPanel { right: 0; }
+
+      .emoji-grid {
+        grid-template-columns: repeat(4, 1fr);
+        justify-content: stretch;
+      }
+      .emoji-item {
+        width: 100%;
+      }
+      .chat-emoji {
+        width: 56px;
+        height: 56px;
+      }
+    }
+    .emoji-item:active {
+      background: rgba(33,40,79,0.95);
+    }
+    .chat-emoji {
+      width: 100%;
+      height: 100%;
+      max-width: 72px;
+      max-height: 72px;
+      object-fit: contain;
+      image-rendering: auto;
+      pointer-events: none;
+    }
+    /* + 버튼 및 메뉴 */
+    .ghost-plus-wrapper {
+      position: relative;
+    }
+    .ghost-plus-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.26);
+      background: rgba(6,11,23,0.9);
+      color: #e5e7ff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+    }
+    .ghost-plus-btn:hover {
+      background: rgba(18,26,54,0.95);
+    }
+    #plusMenu {
+      position: absolute;
+      right: 0;
+      bottom: 40px;
+	      /* 오른쪽 "빈 공간"을 줄이기 위해 폭을 조금 더 슬림하게 */
+	      width: 170px;
+      background: rgba(9,13,30,0.98);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+      padding: 4px 0;
+      display: none;
+      z-index: 10;
+    }
+    #plusMenu.open {
+      display: block;
+    }
+    #plusMenu button {
+      width: 100%;
+      padding: 7px 8px;
+      border: none;
+      background: transparent;
+      color: #e5e7ff;
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+    }
+    /* PC(마우스)에서만 호버 색상 적용 */
+    @media (hover: hover) and (pointer: fine) {
+      #plusMenu button:hover {
+        background: rgba(33,40,79,0.95);
+      }
+    }
+
+    /* 실제 탭/클릭 시에는 모든 환경에서 짧게 강조 */
+    #plusMenu button:active {
+      background: rgba(33,40,79,0.95);
+    }
+
+    /* 상태 표시 */
+    #statusBar {
+      font-size: 11px;
+      color: rgba(199,210,255,0.8);
+      display: flex;
+      justify-content: stretch;
+      padding: 0 4px 2px;
+    }
+    #statusEmotion {
+      font-weight: 600;
+    }
+
+    
+    @keyframes trainShake {
+      0%, 100% { transform: translate(-50%, 0); }
+      50%      { transform: translate(-50%, -6px); }
+    }
+/* 반응형 */
+    @media (max-width: 768px) {
+      #ghostContainer {
+        right: -110px;
+        bottom: 80px; /* 모바일: 네비게이션 바 위쪽으로 조금만 띄우기 */
+        width: 216px;
+        height: 216px;
+        transform: scale(2.0);
+        transform-origin: bottom right;
+      }
+      #ghost {
+        width: 216px;
+        height: 216px;
+      }
+      #bubbleWrapper {
+        right: 190px; /* 모바일: 말풍선을 캐릭터 쪽으로 조금 더 이동 */
+        bottom: 430px; /* 모바일: 전체 레이아웃과 함께 조금 아래로 내림 */
+      }
+      #chatDock {
+        width: 98vw;
+        bottom: 18px;
+      }
+      #log {
+        max-height: 80px;
+      }
+    
+/* 모바일 전용: 열차 배경 보정 및 맵 아이콘 숨기기 */
+#bg-container {
+  top: 0;
+  height: 100%;
+}
+#bg-back-wrap {
+  top: 0;
+  height: 100%;
+  width: 130%;
+}
+.bg-back {
+  height: 100%;
+  object-fit: cover;
+}
+#bg-front {
+  top: 8%;
+  width: 110%;
+  height: auto;
+}
+/* 모바일에서는 맵 미니아이콘/전체맵 숨김 */
+#mapMini,
+#mapModal {
+  display: none !important;
+}
+
+/* 모바일 전용: 열차 배경 보정 및 맵 아이콘 숨김 */
+#bg-container {
+  top: 0;
+  height: 100%;
+}
+#bg-back-wrap {
+  top: 0;
+  height: 100%;
+  width: 130%;
+}
+.bg-back {
+  height: 100%;
+  object-fit: cover;
+}
+#bg-front {
+  top: 8%;
+  width: 110%;
+  height: auto;
+}
+#mapMini,
+#mapModal {
+  display: none !important;
+}
+}
+  
+.teach-modal {
+  position: fixed;
+  top: 28%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 320px;
+  width: 80%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.85);
+  font-size: 12px;
+  z-index: 1000;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+}
+.teach-modal.hidden {
+  display: none !important;
+}
+.teach-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.teach-label {
+  display: block;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  opacity: 0.9;
+}
+.teach-input,
+.teach-textarea,
+.teach-select {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.4);
+  color: #fff;
+  padding: 4px 6px;
+  font-size: 12px;
+  resize: vertical;
+}
+.teach-buttons {
+  margin-top: 6px;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.teach-buttons button {
+  border-radius: 999px;
+  border: none;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.teach-buttons button:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.teach-buttons button:active {
+  transform: scale(0.96);
+  background: rgba(255,255,255,0.12);
+}
+
+.teach-status {
+  margin-top: 4px;
+  font-size: 11px;
+  min-height: 14px;
+  opacity: 0.9;
+}
+
+    /* === 배경: 열차 + 도시 스크롤 (canvasWrapper 내부) === */
+    #bg-container {
+      position: absolute;
+      top: -8%;
+      left: 0;
+      width: 100%;
+      height: 120%;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+      display: none; /* 기본 상태에서는 열차 배경이 보이지 않도록 숨김 */
+    }
+    @keyframes bgMove {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(100%); }
+    }
+    #bg-front {
+      position: absolute;
+      top: 2%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 105%;
+      height: auto;
+      animation: trainShake 6s ease-in-out infinite;
+    }
+    @keyframes trainShake {
+      0%, 100% { transform: translate(-50%, 0); }
+      50%      { transform: translate(-50%, -6px); }
+    }
+
+    /* 기차 창 밖 도시가 자연스럽게 이어져 흐르도록 2장을 이어 붙여 스크롤 */
+    #bg-back-wrap {
+      position: absolute;
+      top: -18%;
+      left: 0;
+      width: 200%;
+      height: 160%;
+      display: flex;
+      animation: bgMove 40s linear infinite;
+      opacity: 0.9;
+    }
+    .bg-back {
+      flex: 0 0 50%;
+      width: 50%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .bg-back-mirror {
+      transform: scaleX(-1);
+      transform-origin: center;
+    }
+    @keyframes bgMove {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* --- 좌하단 지도 버튼 & 확대 지도 --- */
+    #mapMini {
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      width: 80px;
+      height: auto;
+      cursor: pointer;
+      z-index: 50;
+      transition: transform 0.25s ease;
+      display: none;
+    }
+    #mapMini:hover {
+      transform: scale(1.1);
+    }
+    #mapModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      z-index: 90;
+    }
+    #mapModal.active {
+      visibility: visible;
+      opacity: 1;
+    }
+    #mapLarge {
+      width: 60%;
+      max-width: 720px;
+      height: auto;
+      transform: scale(0.5);
+      transition: transform 0.35s ease;
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    }
+    #mapModal.active #mapLarge {
+      transform: scale(1);
+    }
+
+    /* --- 수첩 메뉴판 및 배경 선택 --- */
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    /* --- 배경 선택 패널 (플러스 메뉴에서 호출) --- */
+    #bgSelectPanel {
+      position: fixed;
+      left: 60%;
+      bottom: 260px;
+      transform: translateX(-50%);
+      z-index: 160;
+      display: none;
+    }
+    #bgSelectPanel.open {
+      display: block;
+    }
+    #bgSelectPanel .bg-panel-inner {
+      min-width: 200px;
+      max-width: 220px;
+      max-height: 220px;
+      padding: 8px 10px;
+      background: rgba(9,13,30,0.94);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+      font-size: 12px;
+      overflow-y: auto;
+    }
+    .bg-panel-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(129,140,248,0.45);
+      color: #e5e7ff;
+    }
+    #bgSelectPanel .bg-option {
+      width: 100%;
+      text-align: left;
+      margin: 3px 0;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(129,140,248,0.4);
+      background: rgba(17,24,48,0.9);
+      color: #e5e7ff;
+      cursor: pointer;
+    }
+    #bgSelectPanel .bg-option.active {
+      background: linear-gradient(135deg,#4f46e5,#7c3aed);
+      border-color: transparent;
+      color: #ffffff;
+    }
+    .bg-panel-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    #bgPanelConfirm {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(129,140,248,0.8);
+      background: rgba(30,34,80,0.9); /* 기본은 살짝 어두운 톤 */
+      color: #e5e7ff;
+      font-size: 12px;
+    /* ==== UI refinement overrides (modular v33, level 3) ==== */
+:root {
+  --ghost-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ghost-radius-xl: 18px;
+  --ghost-radius-xxl: 24px;
+  --ghost-shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.45);
+  --ghost-border-subtle: rgba(148, 163, 184, 0.35);
+}
+
+/* Global font + background refinement */
+body {
+  font-family: var(--ghost-font-family);
+  background: radial-gradient(circle at top, rgba(94, 234, 212, 0.18), transparent 46%),
+              radial-gradient(circle at bottom, rgba(96, 165, 250, 0.18), transparent 52%),
+              linear-gradient(145deg, #020617, #020617 32%, #050816 100%);
+}
+
+/* Chat container elevation */
+#app {
+  box-shadow: var(--ghost-shadow-soft);
+  border-radius: var(--ghost-radius-xxl);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+/* Input area */
+.input-row, #chatInputRow {
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: linear-gradient(135deg, rgba(15,23,42,0.7), rgba(15,23,42,0.95));
+}
+
+/* Text input */
+#userInput {
+  background: transparent;
+  border: none;
+  color: #e5e7ff;
+}
+
+/* Send button */
+#sendBtn {
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.45), 0 10px 25px rgba(37,99,235,0.5);
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out, opacity 0.12s ease-out;
+}
+#sendBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px rgba(96,165,250,0.6), 0 14px 35px rgba(37,99,235,0.7);
+}
+#sendBtn:active {
+  transform: translateY(0);
+  box-shadow: 0 0 0 1px rgba(37,99,235,0.9), 0 4px 12px rgba(30,64,175,0.9);
+}
+
+/* Plus button */
+#ghostPlus {
+  border-radius: 999px;
+  box-shadow: 0 10px 25px rgba(15,23,42,0.7);
+}
+
+/* Plus menu */
+#plusMenu {
+  border-radius: var(--ghost-radius-xl);
+  box-shadow: var(--ghost-shadow-soft);
+  border: 1px solid var(--ghost-border-subtle);
+  backdrop-filter: blur(18px);
+}
+
+/* Bubbles */
+.bubble, .bubble-ghost, .bubble-user {
+  border-radius: 18px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.65);
+}
+
+/* Panels (teach, bg, map, etc.) */
+.teach-modal,
+#bgSelectPanel,
+#mapModal {
+  border-radius: var(--ghost-radius-xxl);
+  box-shadow: var(--ghost-shadow-soft);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  backdrop-filter: blur(18px);
+}
+
+/* Scrollbar subtle */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(129,140,248,0.85), rgba(56,189,248,0.7));
+  border-radius: 999px;
+
+  /* 모바일: 수첩(메뉴) 패널을 화면 중앙 근처에 배치 */
+  
+
+ 
+}
+
+
+
+
+
+
+}
+
+/* 좌측 상단 숫자만 보이는 디지털 시계 위젯 */
+
+
+
+/* 모바일에서는 화면 중앙, 다른 UI 뒤에 배치 */
+@media (max-width: 600px) {
+  
+}
+
+#bgPanelConfirm:hover {
+  background: rgba(129,140,248,0.95); /* + 버튼과 비슷한 hover 느낌 */
+  box-shadow: 0 0 0 1px rgba(129,140,248,0.6);
+}
+#bgPanelConfirm:active {
+  background: rgba(79,70,229,1);
+  transform: translateY(1px) scale(0.97);
+  box-shadow: none;
+}
+
+
+/* === Notebook menu overlay (수첩형 메뉴) === */
+.notebook-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: none;
+}
+
+/* 수첩(메뉴) 카드 공통 레이아웃 - 화면 중앙 카드형 */
+.notebook-wrapper {
+  position: relative;
+  width: min(640px, 94vw);
+  max-height: 80vh;
+  background: #fdfaf4;
+  border-radius: 16px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.3);
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+}
+
+
+.notebook-overlay.active {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.notebook-backdrop {
+  display: none;
+}
+
+
+
+.notebook-overlay.active 
+
+.notebook-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.notebook-tabs .tab {
+  background: #f0e2c7;
+  border-radius: 8px 8px 0 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.notebook-tabs .bookmark {
+  background: #f7caca;
+}
+
+.notebook-body {
+  display: grid;
+  grid-template-columns: 1.1fr 1.9fr;
+  gap: 16px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f7efe1 0%, #f9f3e7 50%, #fdfaf3 100%);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.notebook-left {
+  border-right: 1px dashed rgba(0, 0, 0, 0.1);
+  padding-right: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.notebook-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.notebook-subtitle {
+  font-size: 13px;
+  color: #555;
+}
+
+.notebook-right {
+  padding-left: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.memo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.memo-card {
+  position: relative;
+  border: none;
+  outline: none;
+  background: #fffaf2;
+  border-radius: 10px;
+  padding: 14px 10px;
+  box-shadow: 0 3px 0 #e1caa9;
+  cursor: pointer;
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+  height: 86px;            /* 메모지 카드 높이 통일 */
+}
+
+.memo-card::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f0d3b3;
+}
+
+.memo-card .memo-label {
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.memo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 #d5b58d;
+}
+
+.memo-card:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 0 #c9aa80;
+}
+
+.notebook-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 999px;
+  transition: background 0.15s ease-out;
+}
+
+.notebook-close-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* === Board panel (게시판 패널) === */
+.board-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+.board-panel.open {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.board-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.board-inner {
+  /* 게시판 본체: 화면 하단을 기준으로 고정 배치
+     - 예전처럼 '아래에서 올라오는 패널' 느낌은 유지하되,
+       화면 중앙 쪽으로 조금 더 올리고 내부 스크롤을 허용합니다.
+     - 이 파일을 삭제한다면 게시판 관련 JS 모듈(js/ui.js, js/board-write-modal.js)의
+       연동 코드도 함께 삭제해도 됩니다. */
+  position: fixed;
+  left: 50%;
+  bottom: 60px;            /* 살짝 더 위로 올려 화면 중앙에 가깝게 */
+  transform: translateX(-50%);
+  width: min(860px, 80vw); /* 약 10% 축소 + 좌우 여백 유지 */
+  max-height: 78vh;        /* 안내 문구까지 패널 안에 들어오도록 높이를 조금 더 확보 */
+  background: #fdfbf7;
+  border-radius: 16px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.35);
+  padding: 20px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;        /* 패널 밖으로 요소가 삐져나오지 않도록 고정 */
+}
+  gap: 16px;
+  transform: translateX(-50%);
+}
+
+.board-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 40px; /* 닫기 버튼 영역 확보 */
+}
+
+.board-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.board-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+
+.board-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.board-body {
+  display: grid;
+  grid-template-columns: 1.4fr 1.1fr;
+  gap: 18px;
+
+  /* 게시판 내용 영역: 패널 높이 안에서만 스크롤되도록 설정 */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.board-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-list-header {
+  display: flex;
+  justify-content: stretch;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.board-reload-btn {
+  border: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  cursor: pointer;
+  background: #f1e3c9;
+}
+
+.board-list {
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #f8f2e5;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.board-item {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fffaf2;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.board-item-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.board-item-title-auto {
+  font-weight: 800;
+}
+
+
+.board-item-meta {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.board-item-empty {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.board-editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-editor-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.board-input,
+.board-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.12);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  background: #fff;
+}
+
+.board-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.board-save-btn {
+  display: block;
+  margin: 10px auto 4px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 14px;
+  min-width: 140px;
+  cursor: pointer;
+  background: #f3c774;
+}
+
+.board-save-btn:hover {
+  filter: brightness(0.97);
+}
+
+.board-status {
+  margin-top: 4px;
+  font-size: 11px;
+  min-height: 14px;
+  color: #555;
+}
+
+/* Helper for hiding */
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 800px) {
+  .notebook-body {
+    grid-template-columns: 1fr;
+  }
+  .notebook-left {
+    border-right: none;
+    border-bottom: 1px dashed rgba(0,0,0,0.1);
+    padding-right: 0;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+  }
+  .notebook-right {
+    padding-left: 0;
+  }
+  .board-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 로그인 패널 스타일 */
+.login-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+.login-panel.hidden {
+  display: none;
+}
+.login-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+}
+.login-inner {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  bottom: auto;
+  max-width: 420px;
+  max-height: 420px;
+  background: #fffdf7;
+  border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: all 0.18s ease-out;
+}
+
+.login-panel.open .login-inner {
+  transform: translate(-50%, -50%);
+  opacity: 1;
+}
+
+.login-logo-wrap {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: -26px;
+  margin-bottom: 4px;
+  margin-left: -8px;
+  pointer-events: none; /* 클릭 막지 않게 */
+}
+.login-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+
+.login-title {
+  display: none;
+}
+
+.login-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+
+.login-logo-img {
+  max-width: 180px;
+  height: auto;
+  display: block;
+}
+
+.login-logo-floating {
+  position: fixed;
+  z-index: 1300;
+  width: 372px;
+  height: auto;
+  pointer-events: none; /* 클릭 시 로그인창에만 반응 */
+}
+.login-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.login-tab-btn {
+  flex: 1;
+  border-radius: 999px;
+  border: 1px solid #d6c9aa;
+  background: #faf3dd;
+  padding: 4px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.login-tab-btn.active {
+  background: #ffeaa7;
+  border-color: #c5a46a;
+  font-weight: 600;
+}
+.login-body {
+  flex: 1;
+  overflow: auto;
+  padding-top: 4px;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.login-label {
+  font-size: 12px;
+  color: #555;
+}
+.login-input {
+  border-radius: 8px;
+  border: 1px solid #d5cbb4;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.login-submit-btn {
+  margin-top: 8px;
+  border-radius: 999px;
+  border: none;
+  padding: 7px 0;
+  font-size: 14px;
+  background: #74b9ff;
+  color: #fff;
+  cursor: pointer;
+}
+.login-submit-btn:hover {
+  filter: brightness(1.05);
+}
+.login-status {
+  margin-top: 6px;
+  min-height: 18px;
+  font-size: 12px;
+  color: #555;
+}
+
+#555;
+}
+
+
+/* 로그인 필드 및 버튼 재스타일 */
+.login-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-field-row input.login-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.login-password-row .login-submit-main {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.login-bottom-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.login-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  margin-top: 14px;
+}
+
+.login-logout-btn {
+  border-color: rgba(248,113,113,0.9);
+  color: #fecaca;
+}
+
+/* 공용 보조 버튼 (게스트/회원가입/로그아웃) */
+.login-secondary-btn {
+  flex: 1 1 0;
+  padding: 8px 0;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.9);
+  background: rgba(17,24,39,0.9);
+  color: #e5e7eb;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease;
+}
+
+.login-secondary-btn:hover {
+  background: rgba(31,41,55,1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+}
+
+/* 로그인 메인 레이아웃: 왼쪽 필드 2줄, 오른쪽 큰 버튼 */
+.login-main-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.login-fields-col {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-button-col {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-submit-main {
+  padding: 18px 20px;
+  border-radius: 999px;
+  min-width: 80px;
+  font-size: 14px;
+}
+
+/* 이미 정의된 login-secondary-btn / login-footer-row 등은 이전 버전 그대로 사용 */
+
+
+/* 주간 출석 도장 팝업 (메뉴판과 비슷한 색감) */
+.attendance-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.attendance-overlay.open {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.attendance-overlay .attendance-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.attendance-wrapper {
+  position: relative;
+  width: min(480px, 92vw);
+  background: #fdfaf4;
+  border-radius: 16px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  padding: 20px 22px 18px;
+  box-sizing: border-box;
+  border: 2px solid #f4d6c5;
+}
+
+.attendance-header {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.attendance-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #4c2b20;
+}
+
+.attendance-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: #8b5a3c;
+}
+
+.attendance-close:hover {
+  transform: scale(1.1);
+}
+
+.attendance-body {
+  font-size: 13px;
+  color: #5c4636;
+}
+
+.attendance-info {
+  margin-bottom: 6px;
+}
+
+.attendance-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+
+.attendance-day {
+  background: #fffaf3;
+  border-radius: 8px;
+  border: 1px solid #f1d5c6;
+  padding: 4px 2px;
+  min-height: 40px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.18s ease-out, background 0.18s ease-out, border-color 0.18s ease-out;
+}
+
+.attendance-day-label {
+  font-size: 11px;
+  color: #9a7b60;
+}
+
+.attendance-day-stamp {
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.attendance-day.stamped {
+  background: #ffe9c7;
+  border-color: #f4b36b;
+}
+
+.attendance-day.stamping {
+  transform: scale(1.12);
+}
+
+.attendance-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8b5a3c;
+}
+
+
+/* 출석 도장 - 요일 네모 + 큰 꽃무늬 도장 */
+.attendance-day {
+  position: relative;
+  background: #fffaf3;
+  border-radius: 10px;
+  border: 2px solid #f1d5c6;
+  padding: 6px 4px;
+  min-height: 56px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.attendance-day-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #5c3a2a;
+  z-index: 1;
+}
+
+/* 도장은 요일 네모 주변에 크게, 손으로 그린 듯한 느낌으로 */
+.attendance-day.stamped {
+  border-color: #f48fb1;
+  background: #fff3f7;
+}
+
+.attendance-day.stamped::before {
+  content: "❀";
+  position: absolute;
+  font-size: 34px;
+  color: rgba(244, 143, 177, 0.6);
+  top: -8px;
+  right: -110px;
+  transform: rotate(-13deg);
+  z-index: 0;
+}
+
+.attendance-day.stamped::after {
+  content: "❀";
+  position: absolute;
+  font-size: 26px;
+  color: rgba(244, 143, 177, 0.35);
+  bottom: -10px;
+  left: -4px;
+  transform: rotate(18deg);
+  z-index: 0;
+}
+
+/* 도장용 여백만 살짝 확보 */
+.attendance-day-stamp {
+  min-height: 10px;
+}
+
+
+/* 로컬 편지함 모듈 (LettersLocal) */
+.letter-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.letter-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.letter-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.letter-wrapper {
+  position: relative;
+  width: min(720px, 96vw);
+  max-height: 520px;
+  background: #fffaf4;
+  border-radius: 18px;
+  border: 2px solid #f4d6c5;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  padding: 18px 20px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.letter-header {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  margin-bottom: 2px;
+}
+
+.letter-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #4c2b20;
+}
+
+.letter-close {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #8b5a3c;
+}
+
+.letter-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 260px;
+}
+
+.letter-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.letter-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5c3a2a;
+  margin-bottom: 4px;
+}
+
+.letter-desc {
+  font-size: 12px;
+  color: #7b614c;
+  white-space: pre-line;
+  margin-bottom: 2px;
+}
+
+.letter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.letter-label {
+  font-size: 12px;
+  color: #7b614c;
+}
+
+.letter-input,
+.letter-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid #e0d0c0;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fffdf8;
+}
+
+.letter-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.letter-save-btn {
+  margin-top: 6px;
+  border-radius: 999px;
+  border: none;
+  padding: 7px 0;
+  font-size: 14px;
+  font-weight: 600;
+  background: #fdcb6e;
+  color: #4c2b20;
+  cursor: pointer;
+}
+
+.letter-save-btn:hover {
+  filter: brightness(1.05);
+}
+
+.letter-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.letter-list-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5c3a2a;
+  margin-bottom: 4px;
+}
+
+.letter-list {
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e3d7c2;
+  padding: 6px;
+  max-height: 180px; /* 편지 목록은 최대 3개 정도만 보이도록 높이 제한 */
+  overflow-y: auto;
+}
+
+.letter-item {
+  border-radius: 8px;
+  border: 1px solid #f0e3ce;
+  padding: 6px 7px;
+  margin-bottom: 4px;
+  background: #fffdf7;
+  cursor: pointer;
+}
+
+.letter-item:hover {
+  border-color: #fdcb6e;
+  background: #fff9eb;
+}
+
+.letter-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.letter-item-date {
+  font-size: 11px;
+  color: #8d7a63;
+}
+
+.letter-empty {
+  font-size: 12px;
+  color: #8d7a63;
+  margin-top: 4px;
+}
+
+.letter-preview {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e3d7c2;
+  flex: 1 1 auto;              /* 아래쪽 내용을 넓게 보여주도록 영역 확대 */
+  min-height: 140px;
+  overflow-y: auto;
+}
+
+.letter-preview.hidden {
+  display: none;
+}
+
+.letter-preview-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.letter-preview-date {
+  font-size: 11px;
+  color: #8d7a63;
+  margin-bottom: 4px;
+}
+
+.letter-preview-content {
+  font-size: 12px;
+  color: #5c4636;
+  white-space: pre-line;
+}
+
+
+
+/* 편지함 상단 버튼 영역 (게시판 스타일) */
+.letter-right-top {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.letter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.letter-action-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  background: #f4d9aa;
+  color: #5c4636;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+}
+
+.letter-action-btn:hover {
+  filter: brightness(0.97);
+}
+
+/* 편지 쓰기 패널 토글용 */
+#letterComposePanel.hidden {
+  display: none;
+}
+
+/* 받은 편지 목록을 게시판 스타일로 */
+.letter-list.board-list {
+  margin-top: 0;
+}
+
+/* 모바일에서는 왼쪽 편지 쓰기 패널이 아래로 내려가도록 */
+@media (max-width: 700px) {
+  .letter-body {
+    grid-template-columns: minmax(0, 1.2fr);
+    grid-template-rows: auto auto;
+  }
+}
+.letter-status {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8b5a3c;
+}
+
+
+
+.board-list {
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #f8f2e5;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.board-item-header {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.board-item-body {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+
+.board-list-header {
+  display: flex;
+  justify-content: stretch;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.board-list-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.board-reload-btn,
+.board-write-btn {
+  border: none;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #f1e3c9;
+}
+
+.board-reload-btn:hover,
+.board-write-btn:hover {
+  filter: brightness(0.97);
+}
+
+.board-list {
+  margin-top: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  background: #f8f2e5;
+  /* 페이지네이션 방식이므로 스크롤바는 기본 숨김 */
+  max-height: none;
+  overflow-y: visible;
+}
+
+.board-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffaf2;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.board-item-title {
+  font-weight: 700;
+  margin-bottom: 0;
+  font-size: 15px;
+}
+
+.board-item-meta {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-top: 4px;
+}
+
+.board-item-header {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.board-item-body {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.board-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.board-page-btn {
+  border: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #f1e3c9;
+}
+
+.board-page-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.board-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  text-align: right;
+  opacity: 0.8;
+}
+
+
+.board-editor-section {
+  display: none;
+}
+
+
+/* 게시판 레이아웃 조정: 오른쪽 빈 공간 제거 */
+.board-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+
+/* ===========================================================
+   [옵션 기능] 글쓰기 모달
+   - js/board-write-modal.js 모듈이 있을 때만 의미가 있습니다.
+   - 기능 제거 시 이 CSS 블록 전체를 삭제해도 됩니다.
+   =========================================================== */
+
+.board-write-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.board-write-modal.hidden {
+  display: none !important;
+}
+
+.board-write-modal-bg {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+}
+
+.board-write-modal-box {
+  position: relative;
+  background: #fffaf2;
+  padding: 30px;
+  width: 460px;
+  border-radius: 12px;
+  z-index: 10000;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.board-write-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.board-close-btn {
+  margin-top: 4px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: #f0e0cf;
+  cursor: pointer;
+}
+
+
+.board-close-btn:hover {
+  filter: brightness(0.95);
+}
+
+
+.board-page-btn:hover {
+  filter: brightness(0.97);
+}
+
+
+/* 게시판 버튼/텍스트 크기 살짝 키운 오버라이드 */
+.board-reload-btn,
+.board-write-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.board-page-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.board-page-btn:hover {
+  filter: brightness(0.97);
+}
+
+.board-item {
+  padding: 10px 12px;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.board-item-title {
+  font-size: 15px;
+}
+
+.board-hint {
+  font-size: 12px;
+}
+
+
+/* [옵션 기능] 시계 표시 모듈(clock.js) 스타일 시작
+   - #clockWidget에 HH:MM 형식의 시간을 표시합니다.
+   - 이 블록은 js/clock.js, js/clock-interact.js와 짝을 이룹니다.
+   - 시계 기능이 필요 없다면, 이 CSS 블록과 #clockWidget, 관련 <script> 태그를 함께 삭제해도 됩니다.
+*/
+
+.clock-widget {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.25);
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
+  .clock-widget {
+    top: 10px;
+    left: 14px;
+    font-size: 40px;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* [옵션 기능] 시계 표시 모듈(clock.js) 스타일 끝 */
+
+
+/* [옵션 기능] 출석 도장(주간) 모듈(attendance-stamp.js) 스타일 시작
+   - 일주일(일~토) 7칸 그리드를 가진 출석 도장 UI입니다.
+   - 이 블록은 js/attendance-stamp.js 와 짝을 이룹니다.
+   - 출석 기능이 필요 없다면, 이 CSS 블록과 js/attendance-stamp.js,
+     notebook-menu.js / login.js 안의 출석 연동 블록을 함께 삭제해도 됩니다.
+*/
+.attendance-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  display: none;
+}
+.attendance-overlay.open {
+  display: block;
+}
+.attendance-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.40);
+}
+.attendance-panel {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, 90vw);
+  background: #fdfaf4;
+  border-radius: 18px;
+  padding: 18px 20px 20px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.30);
+  font-size: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.attendance-header {
+  font-weight: 700;
+  font-size: 18px;
+  color: #2d3748;
+}
+.attendance-subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #4a5568;
+}
+.attendance-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.attendance-cell {
+  background: linear-gradient(145deg, #ffffff, #f5e9d8);
+  border-radius: 12px;
+  padding: 8px 6px 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.10);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: stretch;
+}
+.attendance-day-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 6px;
+}
+.attendance-stamp-slot {
+  width: 100%;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.95;
+}
+.attendance-stamp-svg {
+  width: 58px;
+  height: 58px;
+}
+.attendance-close-btn {
+  display: inline-block;
+  margin-left: auto;
+  margin-top: 14px;
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 999px;
+  border: none;
+  background: #4a5568;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.18);
+}
+.attendance-close-btn:hover {
+  transform: translateY(-1px);
+}
+/* [옵션 기능] 출석 도장(주간) 모듈(attendance-stamp.js) 스타일 끝 */
+
+/* 모바일 전용 레이아웃 조정 */
+@media (max-width: 768px) {
+  /* 채팅창을 네비게이션 바 위로 조금 올리고 최대 높이를 줄입니다. */
+  #chatPanel {
+    bottom: 72px;           /* 기본보다 살짝 위로 */
+    max-height: 58vh;       /* 너무 위로 길게 늘어나지 않도록 제한 */
+  }
+
+  /* 모바일에서 캐릭터를 약간 크게, 위로/오른쪽으로 이동 */
+  #ghostCharacterWrapper,
+  .ghost-character-wrapper {
+    transform-origin: bottom right;
+    transform: translate(8px, -12px) scale(1.2);
+    right: 8px;
+    bottom: 32px;
+  }
+
+  /* 말풍선을 캐릭터 쪽으로 조금 더 붙이고 크기를 줄임 */
+  .ghost-bubble {
+    max-width: 70vw;
+    font-size: 0.92rem;
+    padding: 9px 12px;
+
+  /* 모바일에서 + 버튼을 화면 좌측 상단에 반투명하게 배치 */
+  .ghost-plus-wrapper {
+    position: fixed;
+    top: 14px;
+    left: 16px;
+    z-index: 50;
+  }
+  #ghostPlus {
+    opacity: 0.5;
+  }
+
+  /* + 버튼 메뉴는 위쪽에서 아래로 펼쳐지도록 위치 조정 */
+  #plusMenu {
+    top: 40px;
+    bottom: auto;
+    left: 0;
+    right: auto;
+  }
+    margin-right: 6px;
+  }
+}
+
+/* 수첩(메뉴)이 열려 있을 때 말풍선이 메뉴에 가려지지 않도록 위치를 조금 더 위로 올립니다. */
+#bubbleWrapper.menu-open {
+  bottom: 540px;
+}
+
+/* 모바일/태블릿에서는 캐릭터와 화면 크기에 맞춰 조금 덜 올립니다. */
+@media (max-width: 768px) {
+  #bubbleWrapper.menu-open {
+    bottom: 300px;
+  }
+}
+
+
+
+/* ================================
+   📱 모바일 전용 캐릭터 & 말풍선 위치/크기 보정
+   - 기본 화면에서 채팅창에 가리지 않도록 위/오른쪽으로 올리고
+   - 캐릭터를 더 크게 보이게 합니다.
+   ================================ */
+@media (max-width: 768px) {
+  /* 기본 화면(게임 모드 아님) 고스트 위치/크기 */
+  
+
+  /* 게임 모드에서는 화면 하단 구석에 조금 크게 */
+  body.is-game-mode #ghostContainer {
+    right: 0;
+    bottom: 4px;
+    transform: scale(1.25);
+    transform-origin: bottom right;
+  }
+
+  /* 말풍선 루트를 고스트 기준으로 더 위/오른쪽으로 이동 */
+  #ghostBubbleRoot,
+  .ghost-bubble-root {
+    transform: translate(80px, -40px);
+  }
+
+  /* 채팅 도크를 네비게이션 바 바로 위에 가깝게 배치 */
+  #chatDock {
+    bottom: 72px;
+  }
+
+  /* 모바일 키보드 열림 시 로그인 패널을 화면 하단으로 내리기 */
+  .login-panel.keyboard-open .login-inner {
+    top: 56%;
+    bottom: auto;
+    max-width: min(420px, 94vw);
+    max-height: 80vh
+    max-height: 80vh;
+    transform: translate(-50%, -50%);
+    width: min(420px, 94vw);
+  }
+}
+
+/* 사용 설명서 패널 (manual-panel.js 전용)
+   - 이 모듈을 제거하려면:
+     1) index.html의 #manualPanel 블록과
+     2) js/manual-panel.js, 아래 CSS 블록을 함께 삭제하면 됩니다. */
+.manual-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 997;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+.manual-panel.open {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.manual-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.manual-inner {
+  position: fixed;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  width: min(760px, 86vw);
+  max-height: 76vh;
+  background: #fdfbf7;
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.manual-header {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  padding: 10px 18px;
+  background: #1e293b;
+  color: #f9fafb;
+}
+
+.manual-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.manual-close {
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.manual-body {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.manual-list {
+  border-right: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 10px 8px;
+  background: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manual-item {
+  border: none;
+  background: white;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease-out, transform 0.08s ease-out;
+}
+
+.manual-item:hover {
+  background: #e5f0ff;
+  transform: translateY(-1px);
+}
+
+.manual-item.active {
+  background: #dbeafe;
+  font-weight: 600;
+}
+
+.manual-detail {
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+
+.manual-detail h3 {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+}
+
+.manual-detail p {
+  margin: 4px 0;
+}
+
+@media (max-width: 768px) {
+  .manual-inner {
+    width: 94vw;
+    bottom: 40px;
+    max-height: 70vh;
+  }
+  .manual-body {
+    grid-template-columns: 1fr;
+  }
+  .manual-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+  }
+  .manual-item {
+    flex: 1 1 calc(50% - 6px);
+    font-size: 0.85rem;
+    padding: 6px 8px;
+  }
+}
+
+    /* 눈 내리는 겨울 배경용 레이어 */
+    #snowLayer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: auto;
+      z-index: 1;
+    }
+    .snowflake {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.95) 0, rgba(255,255,255,0.2) 60%, rgba(255,255,255,0) 70%);
+      box-shadow: 0 0 4px rgba(255,255,255,0.7);
+      opacity: 0.9;
+      pointer-events: auto; /* 눈 송이는 클릭 가능 */
+      animation-name: snowFall;
+      animation-timing-function: linear;
+      animation-iteration-count: 1;
+      animation-fill-mode: forwards;
+    }
+    .snowflake.melt {
+      animation: none;
+      transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+      transform: scale(1.8);
+      opacity: 0;
+    }
+
+    @keyframes snowFall {
+      0% {
+        transform: translate3d(0, -10vh, 0);
+        opacity: 0;
+      }
+      10% {
+        opacity: 0.9;
+      }
+      100% {
+        transform: translate3d(15px, 110vh, 0);
+        opacity: 0;
+      }
+    }
+    /* 모바일에서 열차 배경 보정 (wall1 열차 배경 3.8배 확대) */
+    @media (max-width: 768px) {
+      #bg-container {
+        top: 0;
+        height: 110%;
+      }
+      #bg-back-wrap {
+        height: 145%;
+      }
+      #bg-front {
+        top: 0%;
+        width: 380%;
+      }
+    }
+
+}
+
+
+
+
+/* 오늘의 퀘스트 카드 스타일 (수첩 메모지와 유사하게) */
+.qe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.qe-card {
+  position: relative;
+  border: none;
+  outline: none;
+  background: #fffaf2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #d5b58d;
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out, filter 0.12s ease-out;
+}
+
+.qe-card-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.qe-card-desc {
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+/* 메뉴 메모지처럼: 마우스 다가가면 살짝 떠오르기 */
+.qe-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 #d5b58d;
+  filter: brightness(1.02);
+}
+
+/* 눌렀을 때 살짝 눌리는 효과 */
+.qe-card:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 0 #c9aa80;
+}
+
+
+
+.login-submit-main {
+  height: 27px !important;
+  padding: 0 20px !important;
+  line-height: 27px !important;
+  border-radius: 8px !important;
+}
+
+
+.login-submit-main {
+  height: 40px !important;
+  padding: 0 20px !important;
+  line-height: 40px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+}
+
+
+.login-submit-main {
+  height: 60px !important;          /* 아이디칸 위쪽 ~ 비밀번호칸 아래쪽 전체 높이에 맞추기 */
+  line-height: 60px !important;
+  padding: 0 26px !important;        /* 가로폭 유지 */
+  border-radius: 10px !important;    /* 살짝 각지게 */
+  font-size: 15px !important;
+}
+
+
+.login-submit-main {
+  height: 90px !important;
+  line-height: 90px !important;
+  padding: 0 26px !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+}
+
+
+.login-password-row {
+    align-items: flex-start !important;
+    margin-top: 6px !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 18px !important;      /* 더 둥글게 */
+    margin-top: 16px !important;         /* 버튼 자체를 아래로 내림 */
+}
+
+/* ensure password row doesn't counteract button position */
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;      /* 더 둥글게 */
+    margin-top: 24px !important;         /* 더 아래로 내림 */
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;      
+    margin-top: 12px !important;         
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 8px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 12px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 14px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 15px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 16px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 18px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+/* override login button final position */
+.login-submit-main {
+    height: 90px !important;
+    line-height: 90px !important;
+    padding: 0 26px !important;
+    border-radius: 24px !important;
+    margin-top: 20px !important;
+}
+
+.login-password-row {
+    align-items: flex-start !important;
+}
+
+
+/* === 모바일 전용 로그인 패널 가로폭 보정 (v59_login_mobile_width_only) ===
+   - PC 레이아웃은 그대로 두고,
+   - 작은 화면에서만 로그인창이 화면 밖으로 잘리지 않도록 폭을 조정합니다.
+*/
+@media (max-width: 600px) {
+  .login-inner {
+    /* 양옆으로 16px 여백을 두고, 최대 420px까지만 사용 */
+    width: min(420px, calc(100% - 32px));
+    max-width: min(420px, calc(100% - 32px));
+    box-sizing: border-box;
+  }
+}
+
+
+/* ===== [social-chat-firebase.js] 관련 스타일 =====
+   - 채팅창 좌측 상단 ㄴ자 모양 소통 모드 토글 버튼
+   - 소통 모드 전환 시(#chatPanel.chat-panel-social) 강조 스타일
+   - 이 기능 제거 시:
+     1) index.html 안의 #socialToggleBtn 버튼 HTML 삭제
+     2) js/social-chat-firebase.js 스크립트 삭제
+     3) 아래 .social-toggle-btn / .chat-panel-social 관련 CSS 삭제
+*/
+
+    #socialToggleBtn.social-toggle-btn {
+      position: absolute;
+      left: 10px;
+      top: 8px;
+      width: 20px;
+      height: 20px;
+      background: none;
+      border: none;
+      outline: none;
+      padding: 0;
+      cursor: pointer;
+      z-index: 5;
+    }
+
+    #socialToggleBtn.social-toggle-btn::before {
+      content: "";
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      right: 4px;
+      bottom: 4px;
+      border-radius: 4px;
+      border-top: 2px solid rgba(255, 255, 255, 0.38);
+      border-left: 2px solid rgba(255, 255, 255, 0.38);
+      border-right: 2px solid transparent;
+      border-bottom: 2px solid transparent;
+      pointer-events: none;
+    }
+
+    #socialToggleBtn.social-toggle-btn:hover::before {
+      border-top-color: rgba(255, 255, 255, 0.85);
+      border-left-color: rgba(255, 255, 255, 0.85);
+    }
+
+    #chatPanel.chat-panel-social {
+      /* 소통 모드일 때도 기본 그림자 유지 (추가 파란 테두리 제거) */
+    }
+
+    #chatPanel.chat-panel-social #log {
+      color: #e8fbff;
+    }
+
+    #chatPanel.chat-panel-social .log-line.social {
+      background: transparent;
+      border-radius: 0;
+      padding: 0;
+    }
+
+    #chatPanel.chat-panel-social .log-line.social span.role {
+      color: #8ad0ff;
+    }
+
+
+
+
+
+/* 모바일에서 채팅창을 화면 아래쪽에 좀 더 가깝게 배치 */
+@media (max-width: 768px) {
+  #chatDock {
+    bottom: 8px;
+  }
+}
+
+/* ===== 게임 오버레이 (실시간 톡, 내부 게임) ===== */
+
+.game-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.36);
+  z-index: 1200;
+}
+.game-overlay.hidden {
+  display: none;
+}
+
+/* [X-only 닫기 버튼] 지정된 게임에서만 오버레이 배경을 투명 처리하고 ✕만 띄웁니다. */
+.game-overlay.x-only {
+  background: transparent;
+}
+.game-overlay.x-only .game-topbar {
+  height: 0;
+  padding: 0;
+  background: transparent;
+}
+/* 기본은 숨김(지정된 게임에서만 ✕ 표시) */
+.game-overlay .game-close-btn { display: none; }
+
+.game-overlay.x-only .game-close-btn {
+  display: inline-flex;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 20px;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+  z-index: 2001;
+  pointer-events: auto;
+}
+.game-frame {
+  position: absolute;
+  inset: 0;
+  border: none;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+.game-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  background: transparent;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 실시간 톡(메신저) 화면에서는 상단 X가 iframe 안에 있으므로, 외부 게임 오버레이 상단바는 숨깁니다. */
+.game-overlay[data-mode="messenger"] .game-topbar,
+.game-overlay.mode-messenger .game-topbar {
+  display: none;
+}
+.game-close-btn {
+  pointer-events: auto;
+  border: none;
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15,23,42,0.75);
+  color: #f9fafb;
+  font-size: 16px;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.game-close-btn:active {
+  background: rgba(15,23,42,0.9);
+}
+
+
+/* Notebook memo cards: press(누르는) 애니메이션 */
+.memo-card:active,
+.memo-card.is-pressed {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 0 #c9aa80;
+}

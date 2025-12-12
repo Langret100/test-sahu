@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>🥚 마이 다마고치</title>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+    :root { --accent-pink: #ff8fab; --accent-blue: #8ecae6; --accent-green: #95d5b2; --accent-yellow: #ffd166; --accent-purple: #c8b6ff; --text-dark: #5c4033; --text-light: #8b7355; }
+    body { font-family: 'Gaegu', cursive; background: linear-gradient(180deg, #fef3e2 0%, #ffe4c4 100%); min-height: 100vh; overflow-x: hidden; }
+    .game-container { max-width: 420px; margin: 0 auto; min-height: 100vh; position: relative; background: linear-gradient(180deg, #e8f4f8 0%, #ffecd2 50%, #fcb69f 100%); overflow: hidden; }
+    
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100; }
+    .coin-display { display: flex; align-items: center; gap: 5px; background: linear-gradient(135deg, #ffd166, #ffb347); padding: 5px 10px; border-radius: 12px; font-family: 'Jua', sans-serif; font-size: 14px; color: #5c4033; }
+    .coin-icon { font-size: 16px; animation: coinSpin 4s infinite linear; }
+    @keyframes coinSpin { 0%,100%{transform:rotateY(0)} 50%{transform:rotateY(180deg)} }
+    .level-badge { background: linear-gradient(135deg, var(--accent-purple), #a78bfa); padding: 5px 10px; border-radius: 12px; font-family: 'Jua', sans-serif; font-size: 13px; color: white; }
+    .header-buttons { display: flex; gap: 5px; }
+    .header-btn { width: 30px; height: 30px; border: none; background: rgba(255,255,255,0.8); border-radius: 50%; font-size: 14px; cursor: pointer; }
+    .header-btn.playing { background: linear-gradient(135deg, #a5d6a7, #81c784); }
+
+    .stats-bar { display: flex; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.5); }
+    .stat { flex: 1; }
+    .stat-label { font-size: 10px; color: var(--text-light); margin-bottom: 2px; display: flex; justify-content: space-between; }
+    .stat-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
+    .stat-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+    .stat-fill.hunger { background: linear-gradient(90deg, #ff8fab, #ff6b8a); }
+    .stat-fill.happiness { background: linear-gradient(90deg, #ffd166, #ffb347); }
+    .stat-fill.exp { background: linear-gradient(90deg, #8ecae6, #5eb3d4); }
+
+    .stage { position: relative; height: 260px; margin: 12px; border-radius: 20px; overflow: hidden; box-shadow: inset 0 4px 15px rgba(0,0,0,0.1); }
+    .stage.home { background: linear-gradient(180deg, #fff8e7 0%, #ffe4c4 60%, #d4a574 100%); }
+    .stage.park { background: linear-gradient(180deg, #87CEEB 0%, #98FB98 60%, #228B22 100%); }
+    
+    .home-bg { position: absolute; width: 100%; height: 100%; }
+    .wall { position: absolute; top: 0; left: 0; right: 0; height: 70%; background: linear-gradient(180deg, #FFF5E6 0%, #FFE4C4 100%); }
+    .wallpaper-pattern { position: absolute; top: 0; left: 0; right: 0; height: 70%; opacity: 0.08; background: repeating-linear-gradient(45deg, #d4a574 0px, #d4a574 1px, transparent 1px, transparent 15px); }
+    .floor { position: absolute; bottom: 0; left: 0; right: 0; height: 35%; background: linear-gradient(180deg, #C4A484 0%, #A0785A 100%); }
+    .floor-boards { position: absolute; bottom: 0; left: 0; right: 0; height: 35%; opacity: 0.15; background: repeating-linear-gradient(90deg, #654321 0px, #654321 2px, transparent 2px, transparent 60px); }
+    .window { position: absolute; top: 20px; left: 20px; width: 55px; height: 50px; background: linear-gradient(180deg, #87CEEB 0%, #B0E0E6 100%); border: 5px solid #8B4513; border-radius: 3px; box-shadow: inset 0 0 10px rgba(255,255,255,0.5); }
+    .window-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 100%; height: 100%; }
+    .window-frame::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 3px; background: #8B4513; transform: translateY(-50%); }
+    .window-frame::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; background: #8B4513; transform: translateX(-50%); }
+    .curtain { position: absolute; top: 12px; width: 20px; height: 58px; border-radius: 0 0 8px 8px; }
+    .curtain-left { left: 8px; background: linear-gradient(180deg, #E8B4B8 0%, #D4919A 100%); }
+    .curtain-right { left: 62px; background: linear-gradient(180deg, #E8B4B8 0%, #D4919A 100%); }
+    .lamp { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 20px; display: none; cursor: pointer; }
+    .lamp.owned { display: block; }
+    .lamp.on { filter: drop-shadow(0 0 10px #FFD700); }
+    .shelf { position: absolute; top: 20px; right: 10px; width: 50px; height: 5px; background: #8B4513; border-radius: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: none; }
+    .shelf.owned { display: block; }
+    .shelf-items { position: absolute; top: 6px; right: 12px; font-size: 14px; display: none; cursor: pointer; }
+    .shelf-items.owned { display: block; }
+    .wall-frame { position: absolute; top: 22px; left: 12px; width: 28px; height: 32px; background: linear-gradient(135deg, #FFE4B5, #FFDAB9); border: 3px solid #8B4513; border-radius: 2px; display: none; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; }
+    .wall-frame.owned { display: flex; }
+    .wall-clock { position: absolute; top: 18px; right: 70px; font-size: 20px; display: none; cursor: pointer; }
+    .wall-clock.owned { display: block; }
+    .aquarium { position: absolute; bottom: 50px; left: 45px; width: 42px; height: 32px; background: linear-gradient(180deg, #B0E0E6 0%, #4682B4 100%); border: 3px solid #5F9EA0; border-radius: 4px 4px 8px 8px; display: none; cursor: pointer; overflow: hidden; box-shadow: inset 0 -8px 15px rgba(0,0,0,0.15); }
+    .aquarium.owned { display: block; }
+    .aquarium-fish { position: absolute; font-size: 12px; animation: fishSwim 2.5s infinite ease-in-out; }
+    .aquarium-fish:nth-child(1) { top: 4px; left: 3px; }
+    .aquarium-fish:nth-child(2) { top: 14px; left: 16px; font-size: 10px; animation-delay: -1s; }
+    .aquarium-bubbles { position: absolute; bottom: 2px; right: 4px; font-size: 7px; animation: bubbleUp 2s infinite; opacity: 0.7; }
+    @keyframes fishSwim { 0%,100%{transform:translateX(0) scaleX(1)} 50%{transform:translateX(6px) scaleX(-1)} }
+    @keyframes bubbleUp { 0%{opacity:0.7;transform:translateY(0)} 100%{opacity:0;transform:translateY(-18px)} }
+    .piano { position: absolute; bottom: 53px; left: 50%; transform: translateX(-50%); font-size: 22px; display: none; cursor: pointer; }
+    .piano.owned { display: block; }
+    .mirror { position: absolute; top: 55px; left: 10px; font-size: 20px; display: none; cursor: pointer; }
+    .mirror.owned { display: block; }
+    .tv { position: absolute; top: 42px; left: 50%; transform: translateX(-50%); font-size: 24px; display: none; cursor: pointer; }
+    .tv.owned { display: block; }
+    .tv.playing { animation: tvGlow 0.5s infinite; }
+    @keyframes tvGlow { 0%,100%{filter:drop-shadow(0 0 5px #87CEEB)} 50%{filter:drop-shadow(0 0 10px #00BFFF)} }
+    .sofa { position: absolute; bottom: 48px; left: 5px; font-size: 28px; display: none; cursor: pointer; }
+    .sofa.owned { display: block; }
+    .furniture.dragging, .lamp.dragging, .shelf-items.dragging, .wall-frame.dragging, 
+    .wall-clock.dragging, .aquarium.dragging, .piano.dragging, .mirror.dragging, 
+    .tv.dragging, .sofa.dragging { opacity: 0.7; transform: scale(1.1); z-index: 100; cursor: grabbing; }
+    .furniture, .lamp, .shelf-items, .wall-frame, .wall-clock, .aquarium, .piano, .mirror, .tv, .sofa { cursor: grab; }
+    
+    .park-bg { position: absolute; width: 100%; height: 100%; display: none; }
+    .sky { position: absolute; top: 0; left: 0; right: 0; height: 65%; background: linear-gradient(180deg, #87CEEB 0%, #B0E0E6 100%); }
+    .sun { position: absolute; top: 15px; right: 25px; width: 35px; height: 35px; background: #FFD700; border-radius: 50%; box-shadow: 0 0 20px #FFD700; }
+    .grass { position: absolute; bottom: 0; left: 0; right: 0; height: 40%; background: linear-gradient(180deg, #90EE90 0%, #228B22 100%); }
+    .tree { position: absolute; bottom: 35%; font-size: 50px; }
+    .tree:nth-child(4) { left: 10%; }
+    .tree:nth-child(5) { right: 10%; }
+    .tree:nth-child(6) { left: 45%; font-size: 35px; bottom: 36%; }
+    .cloud { position: absolute; font-size: 22px; opacity: 0.7; animation: cloudFloat 45s infinite linear; }
+    .cloud:nth-child(2) { top: 10px; animation-delay: 0s; }
+    .cloud:nth-child(3) { top: 30px; animation-delay: -18s; }
+    @keyframes cloudFloat { 0%{transform:translateX(-30px)} 100%{transform:translateX(420px)} }
+    .park-path { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 80px; height: 15%; background: linear-gradient(180deg, #C4A67C, #A08060); border-radius: 40% 40% 0 0; opacity: 0.7; }
+
+    .dust { position: absolute; font-size: 20px; cursor: pointer; animation: dustFloat 3s infinite ease-in-out; z-index: 5; transition: transform 0.2s; }
+    .dust:hover { transform: scale(1.2); }
+    .dust:active { transform: scale(0.8); }
+    @keyframes dustFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+    .dust.cleaning { animation: dustClean 0.3s ease-out forwards; }
+    @keyframes dustClean { 0%{transform:scale(1);opacity:1} 100%{transform:scale(0) translateY(-20px);opacity:0} }
+    
+    .dirty-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139,69,19,0); transition: background 1s; pointer-events: none; border-radius: 20px; }
+
+    .character-container { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%); cursor: pointer; z-index: 10; transition: left 2s ease-in-out, bottom 0.5s ease; }
+    .character-container.at-bed { left: calc(100% - 55px); bottom: 60px; }
+    .character-container.at-toy { left: 50px; bottom: 70px; }
+    .character { font-size: 65px; animation: idle 3s infinite ease-in-out; filter: drop-shadow(0 8px 15px rgba(0,0,0,0.2)); position: relative; display: inline-block; }
+    .character.stage-0 { font-size: 50px; }
+    .character.stage-1 { font-size: 65px; }
+    .character.stage-2 { font-size: 80px; }
+    @keyframes idle { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(-5px) rotate(1deg)} }
+    .character.walking { animation: walk 0.4s infinite; }
+    @keyframes walk { 0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-10px) rotate(4deg)} }
+    .character.sleeping { animation: sleep 2s infinite ease-in-out; }
+    @keyframes sleep { 0%,100%{transform:rotate(15deg) scale(0.95)} 50%{transform:rotate(15deg) scale(0.9)} }
+    .character.eating { animation: eat 0.3s ease-in-out 3; }
+    @keyframes eat { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12) rotate(5deg)} }
+    .character.happy { animation: happy 0.4s ease-in-out 2; }
+    @keyframes happy { 0%,100%{transform:rotate(0) scale(1)} 25%{transform:rotate(-15deg) scale(1.1) translateY(-10px)} 75%{transform:rotate(15deg) scale(1.1) translateY(-10px)} }
+    .character.begging { animation: begging 0.5s infinite; }
+    @keyframes begging { 0%,100%{transform:translateY(0) rotate(-5deg)} 50%{transform:translateY(-8px) rotate(5deg)} }
+    .character.jumping { animation: jump 0.5s ease-out; }
+    @keyframes jump { 0%{transform:translateY(0) scale(1)} 30%{transform:translateY(-40px) scale(1.1)} 50%{transform:translateY(-50px) scale(1.05)} 100%{transform:translateY(0) scale(1)} }
+    .character.lifted { animation: lifted 0.3s ease-out forwards; }
+    @keyframes lifted { 0%{transform:translateY(0)} 100%{transform:translateY(-60px) rotate(10deg)} }
+    .character.falling { animation: falling 0.4s ease-in forwards; }
+    @keyframes falling { 0%{transform:translateY(-60px) rotate(10deg)} 70%{transform:translateY(10px) rotate(-5deg)} 100%{transform:translateY(0) rotate(0)} }
+    .character.excited { animation: excited 0.3s ease-in-out 3; }
+    @keyframes excited { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-25px) rotate(-10deg)} 75%{transform:translateY(-25px) rotate(10deg)} }
+
+    .friend-container { position: absolute; bottom: 70px; display: none; transition: left 2s ease-in-out; z-index: 8; }
+    .friend-character { font-size: 55px; filter: drop-shadow(0 5px 10px rgba(0,0,0,0.2)); animation: friendBounce 2s infinite ease-in-out; cursor: pointer; }
+    .friend-character:active { transform: scale(1.1); }
+    @keyframes friendBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+    .friend-character.walking { animation: friendWalk 0.4s infinite; }
+    @keyframes friendWalk { 0%,100%{transform:translateY(0) rotate(-3deg)} 50%{transform:translateY(-8px) rotate(3deg)} }
+    .friend-character.playing { animation: friendPlay 0.3s infinite; }
+    @keyframes friendPlay { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-15px) scale(1.05)} }
+    .friend-character.jumping { animation: friendJump 0.5s ease-out; }
+    @keyframes friendJump { 0%{transform:translateY(0)} 40%{transform:translateY(-30px)} 100%{transform:translateY(0)} }
+    .friend-bubble { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #fffde7; padding: 5px 10px; border-radius: 12px; font-family: 'Jua', sans-serif; font-size: 11px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: none; }
+    .friend-bubble.show { display: block; animation: bubblePop 0.2s ease; }
+    .friend-bubble::after { content:''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid #fffde7; }
+
+    .speech-bubble { position: absolute; top: -50px; left: 50%; transform: translateX(-50%); background: white; padding: 7px 12px; border-radius: 15px; font-family: 'Jua', sans-serif; font-size: 12px; white-space: nowrap; box-shadow: 0 3px 10px rgba(0,0,0,0.15); display: none; animation: bubblePop 0.2s ease; }
+    .speech-bubble.show { display: block; }
+    .speech-bubble::after { content:''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 7px solid white; }
+    @keyframes bubblePop { from{transform:translateX(-50%) scale(0)} to{transform:translateX(-50%) scale(1)} }
+    .zzz { position: absolute; top: -10px; right: -20px; font-size: 18px; animation: zzz 1.5s infinite; display: none; }
+    .zzz.show { display: block; }
+    @keyframes zzz { 0%,100%{transform:translateY(0);opacity:0.5} 50%{transform:translateY(-6px);opacity:1} }
+    .hearts-container { position: absolute; top: 50%; left: 50%; pointer-events: none; }
+    .heart { position: absolute; font-size: 18px; animation: heartFloat 0.7s ease-out forwards; opacity: 0; }
+    @keyframes heartFloat { 0%{transform:translate(-50%,0) scale(0);opacity:1} 100%{transform:translate(-50%,-50px) scale(1.2);opacity:0} }
+
+    .effect { position: absolute; pointer-events: none; animation: effectPop 0.5s ease-out forwards; }
+    @keyframes effectPop { 0%{transform:scale(0);opacity:1} 100%{transform:scale(1.5) translateY(-25px);opacity:0} }
+    .food-drop { position: absolute; font-size: 30px; animation: foodFall 0.5s ease-in forwards; pointer-events: none; z-index: 20; }
+    @keyframes foodFall { 0%{transform:translateY(-70px);opacity:1} 80%{transform:translateY(0);opacity:1} 100%{transform:translateY(0) scale(0);opacity:0} }
+
+    .furniture { position: absolute; cursor: pointer; transition: transform 0.2s; z-index: 3; }
+    .furniture:active { transform: scale(0.9); }
+    .furniture-bed { bottom: 48px; right: 8px; font-size: 34px; }
+    .furniture-toy { bottom: 56px; right: 85px; font-size: 24px; animation: toyBounce 2.5s infinite ease-in-out; }
+    @keyframes toyBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+    .furniture-plant { bottom: 54px; right: 50px; font-size: 28px; }
+
+    .action-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 12px; margin-bottom: 10px; }
+    .action-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 6px; background: white; border: none; border-radius: 15px; cursor: pointer; transition: all 0.2s; box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+    .action-btn:active { transform: scale(0.95); }
+    .action-btn .icon { font-size: 22px; }
+    .action-btn .label { font-size: 10px; font-family: 'Jua', sans-serif; color: var(--text-dark); }
+    .action-btn:nth-child(1) { background: linear-gradient(135deg, #ffecb3, #ffe082); }
+    .action-btn:nth-child(2) { background: linear-gradient(135deg, #f8bbd9, #f48fb1); }
+    .action-btn:nth-child(3) { background: linear-gradient(135deg, #b3e5fc, #81d4fa); }
+    .action-btn:nth-child(4) { background: linear-gradient(135deg, #c8e6c9, #a5d6a7); }
+    .action-btn.walk-btn.outside { background: linear-gradient(135deg, #ffccbc, #ff8a65); }
+
+    .growth-section { background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border-radius: 15px; padding: 12px; margin: 0 12px 12px; }
+    .growth-title { font-family: 'Jua', sans-serif; font-size: 14px; color: var(--text-dark); margin-bottom: 10px; text-align: center; }
+    .growth-stages { display: flex; justify-content: space-between; align-items: center; position: relative; }
+    .growth-line { position: absolute; top: 20px; left: 40px; right: 40px; height: 3px; background: #e0e0e0; }
+    .growth-line-fill { height: 100%; background: var(--accent-green); transition: width 0.5s; }
+    .growth-stage { display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 1; }
+    .stage-icon { width: 40px; height: 40px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 3px solid #e0e0e0; transition: all 0.3s; }
+    .growth-stage.active .stage-icon { border-color: var(--accent-green); background: #e8f5e9; transform: scale(1.1); }
+    .growth-stage.completed .stage-icon { border-color: var(--accent-green); background: var(--accent-green); }
+    .stage-label { font-size: 10px; color: var(--text-light); }
+    .level-info { margin-top: 10px; text-align: center; font-family: 'Jua', sans-serif; font-size: 12px; color: var(--text-dark); }
+    .level-bonus { font-size: 10px; color: var(--accent-green); }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 15px; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: white; border-radius: 20px; width: 100%; max-width: 340px; max-height: 70vh; overflow-y: auto; animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 2px dashed #eee; position: sticky; top: 0; background: white; border-radius: 20px 20px 0 0; }
+    .modal-title { font-family: 'Jua', sans-serif; font-size: 18px; color: var(--text-dark); }
+    .close-btn { width: 28px; height: 28px; border: none; background: #f5f5f5; border-radius: 50%; font-size: 16px; cursor: pointer; }
+    .modal-content { padding: 15px; }
+
+    .shop-tabs { display: flex; gap: 5px; margin-bottom: 10px; overflow-x: auto; }
+    .shop-tab { padding: 6px 12px; border: none; background: #f0f0f0; border-radius: 10px; font-family: 'Jua', sans-serif; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .shop-tab.active { background: linear-gradient(135deg, var(--accent-pink), #ff6b8a); color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .shop-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .shop-item { background: #f9f9f9; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; border: 3px solid transparent; transition: all 0.2s; }
+    .shop-item:active { transform: scale(0.98); }
+    .shop-item.owned { border-color: var(--accent-green); background: #e8f5e9; }
+    .shop-item.equipped { border-color: var(--accent-purple); background: #f3e5f5; }
+    .shop-item .item-icon { font-size: 30px; margin-bottom: 4px; }
+    .shop-item .item-name { font-family: 'Jua', sans-serif; font-size: 12px; color: var(--text-dark); margin-bottom: 3px; }
+    .shop-item .item-price { font-size: 11px; color: var(--text-light); }
+    .shop-item .item-effect { font-size: 9px; color: var(--accent-green); margin-top: 3px; }
+
+    .allowance-section { background: linear-gradient(135deg, #fff9c4, #fff59d); border-radius: 15px; padding: 15px; text-align: center; }
+    .allowance-title { font-family: 'Jua', sans-serif; font-size: 14px; color: var(--text-dark); margin-bottom: 10px; }
+    .allowance-problem { font-family: 'Jua', sans-serif; font-size: 24px; color: var(--text-dark); margin-bottom: 10px; }
+    .allowance-input { width: 100%; padding: 10px; border: 3px solid #e0e0e0; border-radius: 10px; font-size: 18px; text-align: center; font-family: 'Jua', sans-serif; margin-bottom: 6px; outline: none; }
+    .allowance-input:focus { border-color: var(--accent-blue); }
+    .allowance-submit { width: 100%; padding: 10px; background: linear-gradient(135deg, var(--accent-green), #7bc47f); border: none; border-radius: 10px; font-family: 'Jua', sans-serif; font-size: 14px; color: white; cursor: pointer; }
+    .allowance-result { margin-top: 10px; font-family: 'Jua', sans-serif; font-size: 14px; }
+    .allowance-result.correct { color: var(--accent-green); }
+    .allowance-result.wrong { color: var(--accent-pink); }
+
+    .minigame-section { text-align: center; }
+    .minigame-title { font-family: 'Jua', sans-serif; font-size: 16px; color: var(--text-dark); margin-bottom: 12px; }
+    .minigame-options { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
+    .minigame-btn { width: 60px; height: 60px; border: none; border-radius: 50%; font-size: 28px; cursor: pointer; background: white; box-shadow: 0 3px 12px rgba(0,0,0,0.1); transition: all 0.2s; }
+    .minigame-btn:active { transform: scale(0.95); }
+    .minigame-result { font-family: 'Jua', sans-serif; font-size: 18px; margin-top: 12px; min-height: 25px; }
+    .minigame-score { font-size: 13px; color: var(--text-light); margin-top: 6px; }
+
+    .toast { position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 16px; border-radius: 15px; font-family: 'Jua', sans-serif; font-size: 13px; z-index: 2000; display: none; }
+    .toast.show { display: block; animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards; }
+    @keyframes toastIn { from{transform:translateX(-50%) translateY(10px);opacity:0} to{transform:translateX(-50%) translateY(0);opacity:1} }
+    @keyframes toastOut { from{opacity:1} to{opacity:0} }
+
+    .stage.egg-stage, .stage.naming-stage { height: 100vh; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 0; padding: 25px; background: linear-gradient(180deg, #ffecd2 0%, #fcb69f 100%); }
+    .name-input { width: 100%; max-width: 240px; padding: 10px; border: 3px solid var(--accent-pink); border-radius: 10px; font-size: 16px; text-align: center; font-family: 'Gaegu', cursive; margin: 10px 0; outline: none; }
+    .start-btn { width: 100%; max-width: 240px; padding: 12px; background: linear-gradient(135deg, var(--accent-pink), #ff6b8a); border: none; border-radius: 15px; font-family: 'Jua', sans-serif; font-size: 16px; color: white; cursor: pointer; }
+    .start-btn:disabled { background: #ccc; }
+    .egg { font-size: 80px; animation: eggWobble 1s infinite ease-in-out; cursor: pointer; }
+    @keyframes eggWobble { 0%,100%{transform:rotate(-2deg)} 50%{transform:rotate(2deg)} }
+    .egg.cracking { animation: eggCrack 0.15s infinite; }
+    @keyframes eggCrack { 0%,100%{transform:rotate(-4deg) scale(1)} 50%{transform:rotate(4deg) scale(1.03)} }
+    .click-hint { font-size: 12px; color: var(--text-light); animation: hintPulse 2.5s infinite ease-in-out; font-family: 'Jua', sans-serif; margin-top: 12px; }
+    @keyframes hintPulse { 0%,100%{opacity:0.4} 50%{opacity:0.9} }
+
+    .hidden { display: none !important; }
+    .accessory { position: absolute; font-size: 22px; pointer-events: none; }
+    .accessory.hat { top: -18px; left: 50%; transform: translateX(-50%); }
+    .accessory.glasses { top: 16px; left: 50%; transform: translateX(-50%); }
+    .accessory.bow { top: -6px; right: -6px; }
+
+    .clean-badge { position: absolute; top: 8px; left: 8px; background: #ff6b6b; color: white; padding: 3px 8px; border-radius: 10px; font-family: 'Jua', sans-serif; font-size: 11px; display: none; animation: badgePulse 1s infinite; z-index: 20; }
+    .clean-badge.show { display: block; }
+    @keyframes badgePulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+
+    @media (max-width: 380px) {
+      .stage { height: 220px; margin: 10px; }
+      .character { font-size: 55px; }
+      .character.stage-0 { font-size: 42px; }
+      .character.stage-1 { font-size: 55px; }
+      .character.stage-2 { font-size: 68px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="stage egg-stage" id="eggScreen">
+      <div class="egg" id="egg">🥚</div>
+      <div class="click-hint" id="eggHint">터치해서 알을 깨요! (0/10)</div>
+    </div>
+
+    <div class="stage naming-stage hidden" id="namingScreen">
+      <div class="character" id="newbornChar" style="margin-bottom:12px;">🐱</div>
+      <h2 style="font-family:Jua;font-size:20px;color:var(--text-dark);" id="namingTitle">고양이가 태어났어요!</h2>
+      <p style="color:var(--text-light);margin-bottom:12px;font-size:14px;">이름을 지어주세요</p>
+      <input type="text" class="name-input" id="nameInput" placeholder="이름 입력..." maxlength="8">
+      <button class="start-btn" id="startBtn" disabled>시작하기! 🎉</button>
+    </div>
+
+    <div class="hidden" id="playScreen">
+      <div class="header">
+        <div class="coin-display"><span class="coin-icon">🪙</span><span id="coinCount">50</span></div>
+        <div class="header-buttons">
+          <button class="header-btn" id="musicBtn">🔇</button>
+          <button class="header-btn" id="resetBtn">🔄</button>
+        </div>
+        <div class="level-badge">Lv.<span id="levelNum">1</span> <span id="petNameDisplay">펫</span></div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat"><div class="stat-label"><span>배고픔 🍖</span><span id="hungerText">80%</span></div><div class="stat-bar"><div class="stat-fill hunger" id="hungerBar" style="width:80%"></div></div></div>
+        <div class="stat"><div class="stat-label"><span>행복 💖</span><span id="happinessText">80%</span></div><div class="stat-bar"><div class="stat-fill happiness" id="happinessBar" style="width:80%"></div></div></div>
+        <div class="stat"><div class="stat-label"><span>경험치 ⭐</span><span id="expText">0/100</span></div><div class="stat-bar"><div class="stat-fill exp" id="expBar" style="width:0%"></div></div></div>
+      </div>
+
+      <div class="stage home" id="mainStage">
+        <div class="home-bg" id="homeBg">
+          <div class="wall"></div><div class="wallpaper-pattern"></div>
+          <div class="floor"></div><div class="floor-boards"></div>
+          <div class="window"><div class="window-frame"></div></div>
+          <div class="curtain curtain-left"></div><div class="curtain curtain-right"></div>
+          <div class="shelf" id="decoShelf"></div>
+          <div class="shelf-items" id="decoShelfItems">📚🌱</div>
+          <div class="wall-frame" id="decoFrame">🖼️</div>
+          <div class="lamp" id="decoLamp">💡</div>
+          <div class="wall-clock" id="decoClock">🕰️</div>
+          <div class="mirror" id="decoMirror">🪞</div>
+          <div class="tv" id="decoTv">📺</div>
+          <div class="aquarium" id="decoAquarium">
+            <span class="aquarium-fish">🐠</span>
+            <span class="aquarium-fish">🐟</span>
+            <span class="aquarium-bubbles">💧</span>
+          </div>
+          <div class="piano" id="decoPiano">🎹</div>
+          <div class="sofa" id="decoSofa">🛋️</div>
+        </div>
+        <div class="park-bg" id="parkBg">
+          <div class="sky"></div><div class="sun"></div>
+          <div class="cloud">☁️</div><div class="cloud">☁️</div>
+          <div class="tree">🌳</div><div class="tree">🌲</div><div class="tree">🌴</div>
+          <div class="grass"></div><div class="park-path"></div>
+        </div>
+        
+        <div class="clean-badge" id="cleanBadge">🧹 청소해줘!</div>
+        <div class="dirty-overlay" id="dirtyOverlay"></div>
+        
+        <div class="character-container" id="characterContainer">
+          <div class="character stage-0" id="mainCharacter">🐱</div>
+          <div class="speech-bubble" id="speechBubble">안녕!</div>
+          <div class="zzz" id="zzzEffect">💤</div>
+          <div class="hearts-container" id="heartsContainer"></div>
+        </div>
+        
+        <div class="friend-container" id="friendContainer">
+          <div class="friend-character" id="friendCharacter">🐶</div>
+          <div class="friend-bubble" id="friendBubble">안녕!</div>
+        </div>
+        
+        <div class="furniture furniture-bed" id="furnitureBed">🛏️</div>
+        <div class="furniture furniture-toy hidden" id="furnitureToy">⚽</div>
+        <div class="furniture furniture-plant hidden" id="furniturePlant">🌷</div>
+      </div>
+
+      <div class="growth-section">
+        <div class="growth-title">🌱 성장 단계</div>
+        <div class="growth-stages">
+          <div class="growth-line"><div class="growth-line-fill" id="growthLineFill" style="width:0%"></div></div>
+          <div class="growth-stage active" id="stage0"><div class="stage-icon" id="stageIcon0">🐱</div><span class="stage-label">아기</span></div>
+          <div class="growth-stage" id="stage1"><div class="stage-icon" id="stageIcon1">😺</div><span class="stage-label">어린이</span></div>
+          <div class="growth-stage" id="stage2"><div class="stage-icon" id="stageIcon2">😻</div><span class="stage-label">어른</span></div>
+        </div>
+        <div class="level-info">레벨 <span id="currentLevel">1</span> · <span class="level-bonus" id="levelBonus">코인 보너스 +0%</span></div>
+      </div>
+
+      <div class="action-buttons">
+        <button class="action-btn" id="feedBtn"><span class="icon">🍖</span><span class="label">먹이주기</span></button>
+        <button class="action-btn" id="playBtn"><span class="icon">🎮</span><span class="label">놀아주기</span></button>
+        <button class="action-btn walk-btn" id="walkBtn"><span class="icon">🚶</span><span class="label">산책하기</span></button>
+        <button class="action-btn" id="shopBtn"><span class="icon">🏪</span><span class="label">상점</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="shopModal">
+    <div class="modal">
+      <div class="modal-header"><h2 class="modal-title">🏪 상점</h2><button class="close-btn" id="closeShopBtn">✕</button></div>
+      <div class="modal-content">
+        <div class="shop-tabs">
+          <button class="shop-tab active" data-tab="allowance">💰 용돈받기</button>
+          <button class="shop-tab" data-tab="food">🍖 간식</button>
+          <button class="shop-tab" data-tab="furniture">🛋️ 가구</button>
+          <button class="shop-tab" data-tab="accessory">👒 꾸미기</button>
+        </div>
+        <div class="tab-content active" id="allowanceTab">
+          <div class="allowance-section">
+            <div class="allowance-title">🧮 수학 문제를 풀고 용돈을 받으세요!</div>
+            <div class="allowance-problem" id="allowanceProblem">10 + 5 = ?</div>
+            <input type="number" class="allowance-input" id="allowanceInput" placeholder="정답">
+            <button class="allowance-submit" id="allowanceSubmit">정답 확인!</button>
+            <div class="allowance-result" id="allowanceResult"></div>
+          </div>
+        </div>
+        <div class="tab-content" id="foodTab"><div class="shop-items" id="foodItems"></div></div>
+        <div class="tab-content" id="furnitureTab"><div class="shop-items" id="furnitureItems"></div></div>
+        <div class="tab-content" id="accessoryTab"><div class="shop-items" id="accessoryItems"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="playModal">
+    <div class="modal">
+      <div class="modal-header"><h2 class="modal-title">🎮 놀아주기</h2><button class="close-btn" id="closePlayBtn">✕</button></div>
+      <div class="modal-content">
+        <div class="shop-tabs">
+          <button class="shop-tab active" data-playtab="rps">✊ 가위바위보</button>
+          <button class="shop-tab" data-playtab="catch">🎯 잡기놀이</button>
+          <button class="shop-tab" data-playtab="quiz">❓ 퀴즈</button>
+        </div>
+        <div class="tab-content active" id="rpsTab">
+          <div class="minigame-section">
+            <div class="minigame-title">가위바위보로 놀아주세요!</div>
+            <div id="rpsCharacter" style="font-size:45px;margin:12px 0;">🐱</div>
+            <div class="minigame-options">
+              <button class="minigame-btn" data-rps="scissors">✌️</button>
+              <button class="minigame-btn" data-rps="rock">✊</button>
+              <button class="minigame-btn" data-rps="paper">🖐️</button>
+            </div>
+            <div class="minigame-result" id="rpsResult"></div>
+            <div class="minigame-score">승리: <span id="rpsWins">0</span> · 경험치 +<span id="rpsExp">0</span></div>
+          </div>
+        </div>
+        <div class="tab-content" id="catchTab">
+          <div class="minigame-section">
+            <div class="minigame-title">빠르게 터치하세요!</div>
+            <div id="catchArea" style="width:100%;height:180px;background:#f5f5f5;border-radius:12px;position:relative;overflow:hidden;margin:12px 0;">
+              <div id="catchTarget" style="position:absolute;font-size:35px;cursor:pointer;">🐱</div>
+            </div>
+            <div class="minigame-result">점수: <span id="catchScore">0</span></div>
+            <button class="allowance-submit" id="catchStart">게임 시작!</button>
+          </div>
+        </div>
+        <div class="tab-content" id="quizTab">
+          <div class="minigame-section">
+            <div class="minigame-title" id="quizQuestion">좋아하는 간식은?</div>
+            <div class="minigame-options" id="quizOptions" style="flex-wrap:wrap;"></div>
+            <div class="minigame-result" id="quizResult"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">메시지</div>
+
+  <script>
+    let audioCtx=null,isMusicPlaying=false,bgmTimeout=null,noteIndex=0;
+    const MELODIES=[[{n:'E4',d:0.5},{n:'G4',d:0.5},{n:'A4',d:0.7},{n:'G4',d:0.5},{n:'E4',d:0.7},{n:'R',d:0.3},{n:'D4',d:0.5},{n:'E4',d:0.5},{n:'G4',d:0.7},{n:'E4',d:0.5},{n:'D4',d:0.7},{n:'R',d:0.3},{n:'C4',d:0.5},{n:'E4',d:0.5},{n:'G4',d:0.5},{n:'A4',d:0.7},{n:'G4',d:0.5},{n:'E4',d:0.7},{n:'R',d:0.3},{n:'D4',d:0.5},{n:'E4',d:0.5},{n:'D4',d:0.5},{n:'C4',d:1.0},{n:'R',d:0.5}],[{n:'G4',d:0.6},{n:'E4',d:0.4},{n:'C4',d:0.6},{n:'R',d:0.3},{n:'D4',d:0.6},{n:'E4',d:0.4},{n:'G4',d:0.8},{n:'R',d:0.3},{n:'A4',d:0.6},{n:'G4',d:0.4},{n:'E4',d:0.6},{n:'R',d:0.3},{n:'D4',d:0.6},{n:'C4',d:0.8},{n:'R',d:0.4},{n:'E4',d:0.5},{n:'G4',d:0.5},{n:'A4',d:0.5},{n:'G4',d:0.8},{n:'R',d:0.3},{n:'E4',d:0.5},{n:'D4',d:0.5},{n:'C4',d:1.0},{n:'R',d:0.6}],[{n:'C4',d:0.7},{n:'E4',d:0.5},{n:'G4',d:0.7},{n:'R',d:0.4},{n:'A4',d:0.5},{n:'G4',d:0.7},{n:'R',d:0.3},{n:'E4',d:0.5},{n:'D4',d:0.5},{n:'C4',d:0.7},{n:'R',d:0.4},{n:'D4',d:0.5},{n:'E4',d:0.7},{n:'R',d:0.3},{n:'G4',d:0.6},{n:'A4',d:0.4},{n:'G4',d:0.6},{n:'E4',d:0.5},{n:'D4',d:0.7},{n:'R',d:0.3},{n:'C4',d:0.5},{n:'E4',d:0.5},{n:'D4',d:0.5},{n:'C4',d:1.2},{n:'R',d:0.6}]];
+    const NOTE_FREQ={'C4':261.63,'D4':293.66,'E4':329.63,'F4':349.23,'G4':392.00,'A4':440.00,'B4':493.88,'C5':523.25,'R':0};
+    let currentMelody=[];
+    function initAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();}
+    function playNote(freq,dur,vol,type){if(!audioCtx||freq===0)return;const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.connect(gain);gain.connect(audioCtx.destination);osc.frequency.value=freq;osc.type=type||'sine';gain.gain.setValueAtTime(vol||0.04,audioCtx.currentTime);gain.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+dur);osc.start();osc.stop(audioCtx.currentTime+dur);}
+    function playBGMNote(){if(!isMusicPlaying)return;const note=currentMelody[noteIndex];const freq=NOTE_FREQ[note.n];if(freq)playNote(freq,note.d*1.2,0.035,'sine');noteIndex=(noteIndex+1)%currentMelody.length;bgmTimeout=setTimeout(playBGMNote,note.d*400);}
+    function startBGM(){initAudio();isMusicPlaying=true;currentMelody=MELODIES[Math.floor(Math.random()*MELODIES.length)];noteIndex=0;playBGMNote();el.musicBtn.textContent='🔊';el.musicBtn.classList.add('playing');}
+    function stopBGM(){isMusicPlaying=false;if(bgmTimeout)clearTimeout(bgmTimeout);el.musicBtn.textContent='🔇';el.musicBtn.classList.remove('playing');}
+    function sfxHappy(){initAudio();playNote(523,0.1,0.07,'sine');setTimeout(()=>playNote(659,0.1,0.07,'sine'),100);setTimeout(()=>playNote(784,0.15,0.07,'sine'),200);}
+    function sfxEat(){initAudio();playNote(400,0.08,0.06,'square');setTimeout(()=>playNote(500,0.08,0.06,'square'),80);}
+    function sfxCoin(){initAudio();playNote(988,0.1,0.07,'sine');setTimeout(()=>playNote(1319,0.12,0.07,'sine'),100);}
+    function sfxError(){initAudio();playNote(200,0.12,0.05,'sawtooth');}
+    function sfxLevelUp(){initAudio();[523,659,784,1047].forEach((f,i)=>setTimeout(()=>playNote(f,0.15,0.08,'sine'),i*150));}
+    function sfxClick(){initAudio();playNote(600,0.04,0.04,'sine');}
+    function sfxClean(){initAudio();playNote(800,0.08,0.06,'sine');setTimeout(()=>playNote(1000,0.1,0.06,'sine'),80);}
+
+    const CHARACTERS=[{id:'cat',stages:['🐱','😺','😻'],name:'고양이'},{id:'dog',stages:['🐶','🐕','🦮'],name:'강아지'},{id:'rabbit',stages:['🐰','🐇','🐰'],name:'토끼'},{id:'bear',stages:['🧸','🐻','🐻‍❄️'],name:'곰돌이'},{id:'chick',stages:['🐣','🐥','🐓'],name:'병아리'},{id:'hamster',stages:['🐹','🐭','🐀'],name:'햄스터'},{id:'penguin',stages:['🐧','🐦','🦅'],name:'펭귄'},{id:'frog',stages:['🥒','🐸','🐊'],name:'개구리'}];
+    const FRIEND_CHARS=['🐶','🐱','🐰','🐻','🦊','🐼','🐨','🐯','🦁','🐮','🐷','🐸'];
+    const FOODS=[{id:'apple',icon:'🍎',name:'사과',price:10,hunger:20,happiness:5,exp:5},{id:'cookie',icon:'🍪',name:'쿠키',price:15,hunger:15,happiness:15,exp:8},{id:'cake',icon:'🍰',name:'케이크',price:30,hunger:30,happiness:25,exp:15},{id:'icecream',icon:'🍦',name:'아이스크림',price:25,hunger:20,happiness:30,exp:12},{id:'pizza',icon:'🍕',name:'피자',price:35,hunger:40,happiness:20,exp:18},{id:'sushi',icon:'🍣',name:'초밥',price:50,hunger:45,happiness:35,exp:25}];
+    const FURNITURE=[
+      {id:'bed',icon:'🛏️',name:'침대',price:0,effect:'휴식 가능'},
+      {id:'toy',icon:'⚽',name:'공',price:80,effect:'놀이 효과'},
+      {id:'plant',icon:'🌷',name:'꽃',price:60,effect:'행복 +5'},
+      {id:'lamp',icon:'💡',name:'조명',price:50,effect:'분위기 UP',type:'deco'},
+      {id:'shelf',icon:'📚',name:'책장',price:70,effect:'지식 충전',type:'deco'},
+      {id:'frame',icon:'🖼️',name:'액자',price:45,effect:'감성 UP',type:'deco'},
+      {id:'clock',icon:'🕰️',name:'벽시계',price:90,effect:'시간 확인',type:'deco'},
+      {id:'aquarium',icon:'🐠',name:'어항',price:120,effect:'힐링',type:'deco'},
+      {id:'piano',icon:'🎹',name:'피아노',price:150,effect:'음악 연주',type:'deco'},
+      {id:'mirror',icon:'🪞',name:'거울',price:85,effect:'자기 관찰',type:'deco'},
+      {id:'tv',icon:'📺',name:'TV',price:130,effect:'영상 시청',type:'deco'},
+      {id:'sofa',icon:'🛋️',name:'소파',price:110,effect:'편한 휴식'}
+    ];
+    const ACCESSORIES=[{id:'hat',icon:'🎩',name:'모자',price:50,type:'hat',exp:20},{id:'crown',icon:'👑',name:'왕관',price:200,type:'hat',exp:50},{id:'ribbon',icon:'🎀',name:'리본',price:40,type:'bow',exp:15},{id:'glasses',icon:'👓',name:'안경',price:60,type:'glasses',exp:25},{id:'sunglasses',icon:'🕶️',name:'선글라스',price:80,type:'glasses',exp:30},{id:'flower',icon:'🌸',name:'꽃',price:30,type:'bow',exp:10}];
+    const MOODS={happy:['너무 좋아! 💕','행복해요~ 🌈','오늘 기분 짱! ⭐','사랑해요! 💖','최고야! 🎉'],normal:['안녕! 👋','뭐해요? 🤔','심심해~ 😐','놀아줘! 🎈','오늘 뭐해? 😊'],hungry:['배고파... 🥺','밥 줘요... 😢','꼬르륵... 🍽️','간식 먹고 싶어!','배에서 소리나... 🥺'],sad:['외로워... 😢','산책 가고 싶어! 🚶','심심해... 😞','밖에 나가자! 🌳','놀아줘... 🥺'],begging:['산책 가자! 🐾','밖에 나가고 싶어! 🌤️','공원 가자~ 🌳','산책! 산책! 🚶','나가자나가자! 🏃'],sleepy:['졸려... 😴','하암~ 🥱','자고 싶어... 💤','눈이 감겨... 😪','꾸벅꾸벅... 💤'],walk:['와! 신난다! 🎉','공원이다! 🌳','산책 최고! 💕','바람이 좋아~ 🍃','하늘이 예뻐! ☁️','꽃 냄새 좋아! 🌸','여기 좋다! 🌿','달리고 싶어! 🏃','나비다! 🦋','새소리 들려! 🐦'],friend:['친구다! 👋','같이 놀자! 🎈','반가워! 💕','안녕 친구! 🤗','우와 누구야? 😮','새 친구다! ✨']};
+    const FRIEND_MSGS=['안녕! 👋','놀자놀자! 🎈','반가워~ 💕','좋은 날이야! ☀️','산책 좋아? 🌳','나도 산책중! 🚶','친구하자! 🤝','같이 뛰자! 🏃','여기 자주 와? 😊','오늘 기분 좋아! 🎉'];
+    const FRIEND_PLAY_MSGS=['하하! 재밌다! 😆','같이 노니 좋아! 💕','우리 친구야! ✨','신난다! 🎉','또 놀자! 🎈'];
+    const QUIZZES=[{q:'가장 좋아하는 색은?',a:['빨강 ❤️','파랑 💙','노랑 💛','초록 💚']},{q:'뭐 하고 놀까?',a:['공놀이 ⚽','숨바꼭질 🙈','달리기 🏃','낮잠 😴']},{q:'어디 가고 싶어?',a:['공원 🌳','바다 🌊','산 ⛰️','집 🏠']},{q:'좋아하는 계절은?',a:['봄 🌸','여름 ☀️','가을 🍂','겨울 ❄️']}];
+
+    let gs={phase:'egg',eggClicks:0,character:null,petName:'',coins:50,hunger:80,happiness:80,exp:0,level:1,stage:0,ownedFurniture:['bed'],ownedAccessories:[],equippedAccessories:{},isSleeping:false,isOutside:false,dustCount:0,dailyPets:0,dailyWalks:0,lastPetDate:'',furniturePos:{},lastSave:Date.now()};
+    const EXP_PER_LEVEL=100,SAVE_KEY='tamagochi_v5';
+    let wanderTimer=null,talkTimer=null,decayTimer=null,dustTimer=null;
+
+    const el={eggScreen:document.getElementById('eggScreen'),namingScreen:document.getElementById('namingScreen'),playScreen:document.getElementById('playScreen'),egg:document.getElementById('egg'),eggHint:document.getElementById('eggHint'),newbornChar:document.getElementById('newbornChar'),namingTitle:document.getElementById('namingTitle'),nameInput:document.getElementById('nameInput'),startBtn:document.getElementById('startBtn'),coinCount:document.getElementById('coinCount'),levelNum:document.getElementById('levelNum'),petNameDisplay:document.getElementById('petNameDisplay'),hungerBar:document.getElementById('hungerBar'),hungerText:document.getElementById('hungerText'),happinessBar:document.getElementById('happinessBar'),happinessText:document.getElementById('happinessText'),expBar:document.getElementById('expBar'),expText:document.getElementById('expText'),mainStage:document.getElementById('mainStage'),homeBg:document.getElementById('homeBg'),parkBg:document.getElementById('parkBg'),characterContainer:document.getElementById('characterContainer'),mainCharacter:document.getElementById('mainCharacter'),speechBubble:document.getElementById('speechBubble'),zzzEffect:document.getElementById('zzzEffect'),heartsContainer:document.getElementById('heartsContainer'),friendContainer:document.getElementById('friendContainer'),friendCharacter:document.getElementById('friendCharacter'),friendBubble:document.getElementById('friendBubble'),cleanBadge:document.getElementById('cleanBadge'),dirtyOverlay:document.getElementById('dirtyOverlay'),furnitureBed:document.getElementById('furnitureBed'),furnitureToy:document.getElementById('furnitureToy'),furniturePlant:document.getElementById('furniturePlant'),decoLamp:document.getElementById('decoLamp'),decoShelf:document.getElementById('decoShelf'),decoShelfItems:document.getElementById('decoShelfItems'),decoFrame:document.getElementById('decoFrame'),decoClock:document.getElementById('decoClock'),decoAquarium:document.getElementById('decoAquarium'),decoPiano:document.getElementById('decoPiano'),decoMirror:document.getElementById('decoMirror'),decoTv:document.getElementById('decoTv'),decoSofa:document.getElementById('decoSofa'),growthLineFill:document.getElementById('growthLineFill'),stageIcon0:document.getElementById('stageIcon0'),stageIcon1:document.getElementById('stageIcon1'),stageIcon2:document.getElementById('stageIcon2'),stage0:document.getElementById('stage0'),stage1:document.getElementById('stage1'),stage2:document.getElementById('stage2'),currentLevel:document.getElementById('currentLevel'),levelBonus:document.getElementById('levelBonus'),feedBtn:document.getElementById('feedBtn'),playBtn:document.getElementById('playBtn'),walkBtn:document.getElementById('walkBtn'),shopBtn:document.getElementById('shopBtn'),musicBtn:document.getElementById('musicBtn'),resetBtn:document.getElementById('resetBtn'),shopModal:document.getElementById('shopModal'),closeShopBtn:document.getElementById('closeShopBtn'),playModal:document.getElementById('playModal'),closePlayBtn:document.getElementById('closePlayBtn'),allowanceProblem:document.getElementById('allowanceProblem'),allowanceInput:document.getElementById('allowanceInput'),allowanceSubmit:document.getElementById('allowanceSubmit'),allowanceResult:document.getElementById('allowanceResult'),foodItems:document.getElementById('foodItems'),furnitureItems:document.getElementById('furnitureItems'),accessoryItems:document.getElementById('accessoryItems'),toast:document.getElementById('toast'),rpsCharacter:document.getElementById('rpsCharacter'),rpsResult:document.getElementById('rpsResult'),rpsWins:document.getElementById('rpsWins'),rpsExp:document.getElementById('rpsExp'),catchArea:document.getElementById('catchArea'),catchTarget:document.getElementById('catchTarget'),catchScore:document.getElementById('catchScore'),catchStart:document.getElementById('catchStart'),quizQuestion:document.getElementById('quizQuestion'),quizOptions:document.getElementById('quizOptions'),quizResult:document.getElementById('quizResult')};
+
+    function toast(msg){el.toast.textContent=msg;el.toast.classList.add('show');setTimeout(()=>el.toast.classList.remove('show'),2000);}
+    function say(text,dur){el.speechBubble.textContent=text;el.speechBubble.classList.add('show');setTimeout(()=>el.speechBubble.classList.remove('show'),dur||2500);}
+    function getMood(){if(gs.isSleeping)return'sleepy';if(gs.isOutside)return'walk';if(gs.hunger<30)return'hungry';if(gs.happiness<30)return'sad';if(gs.happiness<45)return'begging';if(gs.happiness>80&&gs.hunger>60)return'happy';return'normal';}
+    function getRandomMsg(mood){const msgs=MOODS[mood||getMood()];return msgs[Math.floor(Math.random()*msgs.length)];}
+    function setAnim(anim,dur){const c=el.mainCharacter;c.className='character stage-'+gs.stage;if(anim){c.classList.add(anim);if(dur)setTimeout(()=>c.classList.remove(anim),dur);}}
+    function spawnHearts(){el.heartsContainer.innerHTML='';for(let i=0;i<4;i++){const h=document.createElement('span');h.className='heart';h.textContent=['❤️','💕','💖','💗'][i];h.style.left=((Math.random()-0.5)*40)+'px';h.style.animationDelay=(i*0.07)+'s';el.heartsContainer.appendChild(h);}setTimeout(()=>el.heartsContainer.innerHTML='',700);}
+    function spawnEffect(emoji,x,y){const e=document.createElement('div');e.className='effect';e.textContent=emoji;e.style.left=x+'px';e.style.bottom=y+'px';e.style.fontSize='22px';el.mainStage.appendChild(e);setTimeout(()=>e.remove(),500);}
+
+    function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify({...gs,lastSave:Date.now()}));}catch(e){}}
+    function load(){try{const d=localStorage.getItem(SAVE_KEY);if(d){const saved=JSON.parse(d);const mins=(Date.now()-saved.lastSave)/60000;const decay=Math.min(40,Math.floor(mins/2));const dustGain=Math.min(5,Math.floor(mins/10));gs={...gs,...saved};gs.hunger=Math.max(0,gs.hunger-decay);gs.happiness=Math.max(0,gs.happiness-Math.floor(decay*0.7));gs.dustCount=Math.min(8,gs.dustCount+dustGain);const today=new Date().toDateString();if(gs.lastPetDate!==today){gs.dailyPets=0;gs.dailyWalks=0;gs.lastPetDate=today;}return true;}}catch(e){}return false;}
+    function resetGame(){if(confirm('정말 처음부터 다시 시작할까요?')){localStorage.removeItem(SAVE_KEY);location.reload();}}
+
+    function spawnDust(){if(gs.isOutside||gs.dustCount>=8)return;gs.dustCount++;const dust=document.createElement('div');dust.className='dust';dust.textContent=['🧹','💨','🌫️','✨'][Math.floor(Math.random()*4)];dust.style.left=(15+Math.random()*70)+'%';dust.style.bottom=(30+Math.random()*25)+'%';dust.onclick=()=>cleanDust(dust);el.mainStage.appendChild(dust);updateDirtyOverlay();}
+    function cleanDust(dustEl){sfxClean();dustEl.classList.add('cleaning');gs.dustCount=Math.max(0,gs.dustCount-1);gs.coins+=2;addExp(3);spawnEffect('✨',parseInt(dustEl.style.left),parseInt(dustEl.style.bottom)+20);setTimeout(()=>dustEl.remove(),300);updateDirtyOverlay();updateUI();}
+    function updateDirtyOverlay(){const opacity=gs.dustCount*0.02;el.dirtyOverlay.style.background=`rgba(139,69,19,${opacity})`;el.cleanBadge.classList.toggle('show',gs.dustCount>=4);}
+    function startDustTimer(){dustTimer=setInterval(()=>{if(gs.phase==='playing'&&!gs.isOutside&&Math.random()<0.3)spawnDust();},15000);}
+
+    function toggleWalk(){sfxClick();gs.isOutside?goHome():goOutside();}
+    function goOutside(){
+      const today=new Date().toDateString();
+      if(gs.lastPetDate!==today){gs.dailyWalks=0;gs.lastPetDate=today;}
+      gs.isOutside=true;
+      el.homeBg.style.display='none';el.parkBg.style.display='block';
+      el.mainStage.classList.remove('home');el.mainStage.classList.add('park');
+      el.walkBtn.querySelector('.icon').textContent='🏠';
+      el.walkBtn.querySelector('.label').textContent='집에가기';
+      el.walkBtn.classList.add('outside');
+      el.furnitureBed.classList.add('hidden');el.furnitureToy.classList.add('hidden');
+      el.furniturePlant.classList.add('hidden');
+      document.querySelectorAll('.dust').forEach(d=>d.style.display='none');
+      el.cleanBadge.classList.remove('show');el.dirtyOverlay.style.background='transparent';
+      const walkStartMsgs=['와! 산책이다! 🌳','신난다! 🎉','바깥이다! ☀️','출발~! 🚶','놀러가자! 🌈'];
+      say(walkStartMsgs[Math.floor(Math.random()*walkStartMsgs.length)]);
+      gs.happiness=Math.min(100,gs.happiness+15);
+      setAnim('excited',900);
+      if(gs.dailyWalks<3){
+        gs.dailyWalks++;
+        addExp(10);
+        toast('산책! 행복 +15, 경험치 +10 (오늘 '+gs.dailyWalks+'/3)');
+      }else{
+        toast('산책! 행복 +15 (경험치는 하루 3번까지)');
+      }
+      if(Math.random()<0.6)setTimeout(meetFriend,2000);
+      updateUI();
+    }
+    function goHome(){gs.isOutside=false;el.homeBg.style.display='block';el.parkBg.style.display='none';el.mainStage.classList.add('home');el.mainStage.classList.remove('park');el.walkBtn.querySelector('.icon').textContent='🚶';el.walkBtn.querySelector('.label').textContent='산책하기';el.walkBtn.classList.remove('outside');el.furnitureBed.classList.remove('hidden');if(gs.ownedFurniture.includes('toy'))el.furnitureToy.classList.remove('hidden');if(gs.ownedFurniture.includes('plant'))el.furniturePlant.classList.remove('hidden');document.querySelectorAll('.dust').forEach(d=>d.style.display='block');updateDirtyOverlay();el.friendContainer.style.display='none';if(friendMoveTimer)clearInterval(friendMoveTimer);if(friendTalkTimer)clearInterval(friendTalkTimer);say('집이다~ 🏠');updateUI();}
+    let friendMoveTimer=null;
+    function meetFriend(){
+      if(!gs.isOutside)return;
+      const friend=FRIEND_CHARS[Math.floor(Math.random()*FRIEND_CHARS.length)];
+      el.friendCharacter.textContent=friend;
+      el.friendContainer.style.display='block';
+      el.friendContainer.style.left=(Math.random()<0.5?'15%':'75%');
+      el.friendCharacter.classList.add('walking');
+      
+      // 친구 인사
+      friendSay(FRIEND_MSGS[Math.floor(Math.random()*FRIEND_MSGS.length)]);
+      say(getRandomMsg('friend'));
+      setAnim('happy',800);
+      gs.happiness=Math.min(100,gs.happiness+10);addExp(8);
+      toast('친구를 만났어요! 행복 +10');
+      
+      // 친구 움직임 및 대화
+      let friendActionCount=0;
+      friendMoveTimer=setInterval(()=>{
+        if(!gs.isOutside){clearInterval(friendMoveTimer);clearInterval(friendTalkTimer);return;}
+        friendActionCount++;
+        const action=Math.random();
+        
+        // 이동
+        el.friendContainer.style.left=(15+Math.random()*60)+'%';
+        
+        // 다양한 행동
+        if(action<0.2){
+          // 점프
+          el.friendCharacter.classList.remove('walking','playing');
+          el.friendCharacter.classList.add('jumping');
+          setTimeout(()=>{el.friendCharacter.classList.remove('jumping');el.friendCharacter.classList.add('walking');},500);
+        }else if(action<0.4){
+          // 놀기
+          el.friendCharacter.classList.remove('walking','jumping');
+          el.friendCharacter.classList.add('playing');
+          setTimeout(()=>{el.friendCharacter.classList.remove('playing');el.friendCharacter.classList.add('walking');},1500);
+        }
+      },2500);
+      
+      // 친구 말하기
+      friendTalkTimer=setInterval(()=>{
+        if(!gs.isOutside||Math.random()>0.5)return;
+        friendSay(FRIEND_MSGS[Math.floor(Math.random()*FRIEND_MSGS.length)]);
+      },4000);
+      
+      setTimeout(()=>{
+        if(gs.isOutside){
+          friendSay('잘가~ 👋');
+          setTimeout(()=>{
+            el.friendContainer.style.display='none';
+            clearInterval(friendMoveTimer);
+            clearInterval(friendTalkTimer);
+            say('친구가 갔어요~ 👋');
+          },1500);
+        }
+      },20000);
+    }
+    
+    let friendTalkTimer=null;
+    function friendSay(text){
+      el.friendBubble.textContent=text;
+      el.friendBubble.classList.add('show');
+      setTimeout(()=>el.friendBubble.classList.remove('show'),2500);
+    }
+    
+    el.friendCharacter.addEventListener('click',()=>{
+      if(!gs.isOutside)return;sfxHappy();
+      el.friendCharacter.classList.remove('walking','jumping');
+      el.friendCharacter.classList.add('playing');
+      setAnim('excited',900);
+      gs.happiness=Math.min(100,gs.happiness+5);
+      say(FRIEND_PLAY_MSGS[Math.floor(Math.random()*FRIEND_PLAY_MSGS.length)]);
+      friendSay(['하하! 😆','재밌다! 🎉','또 해! 😊','신난다! ✨'][Math.floor(Math.random()*4)]);
+      setTimeout(()=>{el.friendCharacter.classList.remove('playing');el.friendCharacter.classList.add('walking');},1000);
+    });
+
+    function addExp(amt){gs.exp+=amt;while(gs.exp>=EXP_PER_LEVEL){gs.exp-=EXP_PER_LEVEL;gs.level++;sfxLevelUp();toast('🎊 레벨 '+gs.level+' 달성!');if(gs.level>=10&&gs.stage<2){gs.stage=2;toast('🌟 어른으로 성장!');}else if(gs.level>=5&&gs.stage<1){gs.stage=1;toast('🌟 어린이로 성장!');}}updateUI();}
+    function getCoinBonus(){return 1+(gs.level-1)*0.05;}
+
+    function updateUI(){el.coinCount.textContent=gs.coins;el.levelNum.textContent=gs.level;el.petNameDisplay.textContent=gs.petName;el.hungerBar.style.width=gs.hunger+'%';el.hungerText.textContent=Math.round(gs.hunger)+'%';el.happinessBar.style.width=gs.happiness+'%';el.happinessText.textContent=Math.round(gs.happiness)+'%';el.expBar.style.width=(gs.exp/EXP_PER_LEVEL*100)+'%';el.expText.textContent=gs.exp+'/'+EXP_PER_LEVEL;if(gs.character){let acc='';const hat=ACCESSORIES.find(a=>a.id===gs.equippedAccessories.hat);const glasses=ACCESSORIES.find(a=>a.id===gs.equippedAccessories.glasses);const bow=ACCESSORIES.find(a=>a.id===gs.equippedAccessories.bow);if(hat)acc+='<span class="accessory hat">'+hat.icon+'</span>';if(glasses)acc+='<span class="accessory glasses">'+glasses.icon+'</span>';if(bow)acc+='<span class="accessory bow">'+bow.icon+'</span>';el.mainCharacter.innerHTML=gs.character.stages[gs.stage]+acc;el.mainCharacter.className='character stage-'+gs.stage;el.stageIcon0.textContent=gs.character.stages[0];el.stageIcon1.textContent=gs.character.stages[1];el.stageIcon2.textContent=gs.character.stages[2];el.rpsCharacter.textContent=gs.character.stages[gs.stage];el.catchTarget.textContent=gs.character.stages[gs.stage];}el.growthLineFill.style.width=(gs.stage*50)+'%';[el.stage0,el.stage1,el.stage2].forEach((e,i)=>{e.classList.remove('active','completed');if(i===gs.stage)e.classList.add('active');if(i<gs.stage)e.classList.add('completed');});el.currentLevel.textContent=gs.level;el.levelBonus.textContent='코인 보너스 +'+(Math.floor((gs.level-1)*5))+'%';if(!gs.isOutside){el.furnitureToy.classList.toggle('hidden',!gs.ownedFurniture.includes('toy'));el.furniturePlant.classList.toggle('hidden',!gs.ownedFurniture.includes('plant'));el.decoLamp.classList.toggle('owned',gs.ownedFurniture.includes('lamp'));el.decoShelf.classList.toggle('owned',gs.ownedFurniture.includes('shelf'));el.decoShelfItems.classList.toggle('owned',gs.ownedFurniture.includes('shelf'));el.decoFrame.classList.toggle('owned',gs.ownedFurniture.includes('frame'));el.decoClock.classList.toggle('owned',gs.ownedFurniture.includes('clock'));el.decoAquarium.classList.toggle('owned',gs.ownedFurniture.includes('aquarium'));el.decoPiano.classList.toggle('owned',gs.ownedFurniture.includes('piano'));el.decoMirror.classList.toggle('owned',gs.ownedFurniture.includes('mirror'));el.decoTv.classList.toggle('owned',gs.ownedFurniture.includes('tv'));el.decoSofa.classList.toggle('owned',gs.ownedFurniture.includes('sofa'));}el.zzzEffect.classList.toggle('show',gs.isSleeping);if(gs.isSleeping)setAnim('sleeping');const mood=getMood();if(!gs.isSleeping&&!gs.isOutside){if(mood==='hungry')setAnim('hungry');else if(mood==='sad'||mood==='begging')setAnim('begging');}save();}
+
+    function startAutoActions(){
+      wanderTimer=setInterval(()=>{
+        if(gs.phase!=='playing'||gs.isSleeping)return;
+        
+        // 산책 중일 때 더 활발하게
+        if(gs.isOutside){
+          if(Math.random()<0.6){
+            const c=el.characterContainer;
+            c.classList.remove('at-bed','at-toy');
+            c.style.left=(15+Math.random()*70)+'%';
+          }
+          // 산책 중 점프 더 자주
+          if(Math.random()<0.25){
+            setAnim('jumping',500);
+            if(Math.random()<0.3)say(getRandomMsg('walk'));
+          }
+        }else{
+          // 집에서
+          if(Math.random()<0.5){
+            const c=el.characterContainer;
+            c.classList.remove('at-bed','at-toy');
+            c.style.left=(20+Math.random()*60)+'%';
+          }
+          // 가끔 점프
+          if(Math.random()<0.15){
+            setAnim('jumping',500);
+          }
+          // 가끔 가구와 놀기
+          if(Math.random()<0.1&&gs.ownedFurniture.includes('toy')){
+            const c=el.characterContainer;
+            c.classList.add('at-toy');
+            c.style.left='';
+            say(['공이다! ⚽','놀자놀자! 🎈'][Math.floor(Math.random()*2)]);
+            setAnim('excited',800);
+          }
+        }
+      },2500);
+      talkTimer=setInterval(()=>{
+        if(gs.phase!=='playing'||gs.isSleeping)return;
+        if(Math.random()<0.4){
+          const mood=getMood();
+          say(getRandomMsg(mood));
+          if(mood==='begging')setAnim('begging',1500);
+        }
+      },5000);
+      decayTimer=setInterval(()=>{
+        if(gs.phase!=='playing'||gs.isSleeping)return;
+        gs.hunger=Math.max(0,gs.hunger-1);
+        gs.happiness=Math.max(0,gs.happiness-0.5);
+        updateUI();
+      },6000);
+    }
+
+    function feed(food){if(gs.coins<food.price){sfxError();toast('코인이 부족해요!');return;}gs.coins-=food.price;closeModal('shop');const c=el.characterContainer;c.classList.remove('at-bed','at-toy');c.style.left='50%';setAnim('excited',600);say('우와! '+food.name+'다! 🤩');setTimeout(()=>{const f=document.createElement('div');f.className='food-drop';f.textContent=food.icon;f.style.left='50%';f.style.top='35%';f.style.transform='translateX(-50%)';el.mainStage.appendChild(f);setTimeout(()=>{sfxEat();setAnim('eating',900);f.remove();},400);},600);gs.hunger=Math.min(100,gs.hunger+food.hunger);gs.happiness=Math.min(100,gs.happiness+food.happiness);addExp(food.exp);setTimeout(()=>say('냠냠! 맛있어! 😋'),1200);toast(food.name+' 먹었어요!');}
+
+    function petCharacter(){const today=new Date().toDateString();if(gs.lastPetDate!==today){gs.dailyPets=0;gs.lastPetDate=today;}if(gs.isSleeping){gs.isSleeping=false;el.zzzEffect.classList.remove('show');say('음냐... 일어났어! ☀️');sfxClick();updateUI();return;}sfxHappy();setAnim('happy',800);spawnHearts();gs.happiness=Math.min(100,gs.happiness+10);if(gs.dailyPets<3){gs.dailyPets++;addExp(10);toast('쓰다듬기! 경험치 +10 (오늘 '+gs.dailyPets+'/3)');}else{toast('쓰다듬기! (경험치는 하루 3번까지)');}say(['간지러워! 😆','좋아좋아! 💕','기분 좋아~ 🥰'][Math.floor(Math.random()*3)]);}
+
+    function sleep(){if(gs.isSleeping||gs.isOutside)return;gs.isSleeping=true;const c=el.characterContainer;c.classList.add('at-bed');c.style.left='';setTimeout(()=>{setAnim('sleeping');el.zzzEffect.classList.add('show');say('잘자요... 💤');toast('휴식 중 💤');setTimeout(()=>{gs.hunger=Math.min(100,gs.hunger+20);updateUI();},3000);},600);}
+
+    let rpsWins=0,rpsExp=0;
+    function playRPS(choice){const choices=['scissors','rock','paper'];const pet=choices[Math.floor(Math.random()*3)];const emojis={scissors:'✌️',rock:'✊',paper:'🖐️'};if(choice===pet){el.rpsResult.textContent=emojis[pet]+' 비겼어요!';}else if((choice==='scissors'&&pet==='paper')||(choice==='rock'&&pet==='scissors')||(choice==='paper'&&pet==='rock')){rpsWins++;rpsExp+=5;sfxHappy();el.rpsResult.textContent=emojis[pet]+' 이겼어요! 🎉';setAnim('happy',500);}else{sfxError();el.rpsResult.textContent=emojis[pet]+' 졌어요...';}el.rpsWins.textContent=rpsWins;el.rpsExp.textContent=rpsExp;gs.happiness=Math.min(100,gs.happiness+3);updateUI();}
+    function endRPS(){if(rpsExp>0){addExp(rpsExp);toast('경험치 +'+rpsExp);}rpsWins=0;rpsExp=0;el.rpsWins.textContent=0;el.rpsExp.textContent=0;}
+
+    let catchGame={active:false,score:0,timer:null};
+    function startCatch(){if(catchGame.active)return;catchGame.active=true;catchGame.score=0;el.catchScore.textContent=0;el.catchStart.textContent='진행 중...';el.catchStart.disabled=true;moveCatchTarget();setTimeout(()=>{catchGame.active=false;clearTimeout(catchGame.timer);el.catchStart.textContent='게임 시작!';el.catchStart.disabled=false;const exp=catchGame.score*3;if(exp>0){addExp(exp);toast('경험치 +'+exp);}gs.happiness=Math.min(100,gs.happiness+Math.min(15,catchGame.score*2));updateUI();},10000);}
+    function moveCatchTarget(){if(!catchGame.active)return;const area=el.catchArea,target=el.catchTarget;target.style.left=Math.random()*(area.offsetWidth-40)+'px';target.style.top=Math.random()*(area.offsetHeight-40)+'px';catchGame.timer=setTimeout(moveCatchTarget,800-Math.min(400,catchGame.score*30));}
+    el.catchTarget.addEventListener('click',()=>{if(!catchGame.active)return;catchGame.score++;el.catchScore.textContent=catchGame.score;sfxClick();moveCatchTarget();});
+
+    let currentQuiz=null;
+    function loadQuiz(){currentQuiz=QUIZZES[Math.floor(Math.random()*QUIZZES.length)];el.quizQuestion.textContent=currentQuiz.q;el.quizOptions.innerHTML='';el.quizResult.textContent='';currentQuiz.a.forEach((ans,i)=>{const btn=document.createElement('button');btn.className='minigame-btn';btn.style.cssText='width:auto;height:auto;padding:8px 12px;font-size:13px;border-radius:10px;margin:4px;';btn.textContent=ans;btn.onclick=()=>answerQuiz();el.quizOptions.appendChild(btn);});}
+    function answerQuiz(){sfxHappy();el.quizResult.textContent=['좋은 선택이야! 💕','나도 좋아해! 🥰','우리 취향 비슷해! ⭐'][Math.floor(Math.random()*3)];gs.happiness=Math.min(100,gs.happiness+8);addExp(8);setAnim('happy',600);setTimeout(loadQuiz,1500);}
+
+    let mathProblem={problem:'',answer:0,reward:0};
+    function generateMath(){const ops=['+','-','×','÷'];const op=ops[Math.floor(Math.random()*ops.length)];let a,b,ans;switch(op){case'+':a=Math.floor(Math.random()*50)+1;b=Math.floor(Math.random()*50)+1;ans=a+b;break;case'-':a=Math.floor(Math.random()*50)+20;b=Math.floor(Math.random()*Math.min(a,30))+1;ans=a-b;break;case'×':a=Math.floor(Math.random()*9)+2;b=Math.floor(Math.random()*9)+1;ans=a*b;break;case'÷':b=Math.floor(Math.random()*9)+2;ans=Math.floor(Math.random()*9)+1;a=b*ans;break;}const reward=Math.floor((Math.random()*10+10)*getCoinBonus());mathProblem={problem:a+' '+op+' '+b+' = ?',answer:ans,reward};el.allowanceProblem.textContent=mathProblem.problem;el.allowanceSubmit.textContent='정답 확인! (+'+reward+' 코인)';el.allowanceInput.value='';el.allowanceResult.textContent='';}
+    function submitMath(){const ans=parseInt(el.allowanceInput.value);if(isNaN(ans))return;if(ans===mathProblem.answer){sfxCoin();gs.coins+=mathProblem.reward;el.allowanceResult.textContent='정답! +'+mathProblem.reward+' 코인 💰';el.allowanceResult.className='allowance-result correct';updateUI();setTimeout(generateMath,1200);}else{sfxError();el.allowanceResult.textContent='틀렸어요! 정답은 '+mathProblem.answer;el.allowanceResult.className='allowance-result wrong';setTimeout(generateMath,1800);}}
+
+    function renderShop(){el.foodItems.innerHTML=FOODS.map(f=>'<div class="shop-item" data-food="'+f.id+'"><div class="item-icon">'+f.icon+'</div><div class="item-name">'+f.name+'</div><div class="item-price">🪙 '+f.price+'</div><div class="item-effect">포만감 +'+f.hunger+' · 행복 +'+f.happiness+'</div></div>').join('');el.furnitureItems.innerHTML=FURNITURE.map(f=>{const owned=gs.ownedFurniture.includes(f.id);return'<div class="shop-item '+(owned?'owned':'')+'" data-furniture="'+f.id+'"><div class="item-icon">'+f.icon+'</div><div class="item-name">'+f.name+'</div><div class="item-price">'+(owned?'✅ 보유중':'🪙 '+f.price)+'</div><div class="item-effect">'+f.effect+'</div></div>';}).join('');el.accessoryItems.innerHTML=ACCESSORIES.map(a=>{const owned=gs.ownedAccessories.includes(a.id);const equipped=gs.equippedAccessories[a.type]===a.id;return'<div class="shop-item '+(owned?'owned':'')+' '+(equipped?'equipped':'')+'" data-accessory="'+a.id+'"><div class="item-icon">'+a.icon+'</div><div class="item-name">'+a.name+'</div><div class="item-price">'+(equipped?'⭐ 착용중':owned?'탭해서 착용':'🪙 '+a.price)+'</div><div class="item-effect">경험치 +'+a.exp+'</div></div>';}).join('');}
+
+    function openModal(type,tab){if(type==='shop'){el.shopModal.classList.add('show');renderShop();generateMath();switchTab(tab||'allowance','shop');}else if(type==='play'){el.playModal.classList.add('show');switchTab('rps','play');loadQuiz();rpsWins=0;rpsExp=0;el.rpsWins.textContent=0;el.rpsExp.textContent=0;}}
+    function closeModal(type){if(type==='shop')el.shopModal.classList.remove('show');else if(type==='play'){el.playModal.classList.remove('show');endRPS();}}
+    function switchTab(tab,modalType){const prefix=modalType==='play'?'playtab':'tab';document.querySelectorAll(modalType==='play'?'[data-playtab]':'.shop-tab[data-tab]').forEach(b=>b.classList.remove('active'));document.querySelector('[data-'+prefix+'="'+tab+'"]')?.classList.add('active');const contents=modalType==='play'?[document.getElementById('rpsTab'),document.getElementById('catchTab'),document.getElementById('quizTab')]:[document.getElementById('allowanceTab'),document.getElementById('foodTab'),document.getElementById('furnitureTab'),document.getElementById('accessoryTab')];contents.forEach(c=>c?.classList.remove('active'));document.getElementById(tab+'Tab')?.classList.add('active');}
+
+    el.egg.addEventListener('click',()=>{sfxClick();gs.eggClicks++;el.eggHint.textContent='터치해서 알을 깨요! ('+gs.eggClicks+'/10)';if(gs.eggClicks>5)el.egg.classList.add('cracking');if(gs.eggClicks>=10){sfxLevelUp();gs.character=CHARACTERS[Math.floor(Math.random()*CHARACTERS.length)];gs.phase='naming';el.eggScreen.classList.add('hidden');el.namingScreen.classList.remove('hidden');el.newbornChar.textContent=gs.character.stages[0];el.namingTitle.textContent=gs.character.name+'가 태어났어요!';save();}});
+    el.nameInput.addEventListener('input',()=>{el.startBtn.disabled=!el.nameInput.value.trim();});
+    el.startBtn.addEventListener('click',()=>{if(el.nameInput.value.trim()){gs.petName=el.nameInput.value.trim();gs.phase='playing';gs.lastPetDate=new Date().toDateString();el.namingScreen.classList.add('hidden');el.playScreen.classList.remove('hidden');updateUI();save();toast(gs.petName+'이(가) 태어났어요! 🎉');say('안녕! 나는 '+gs.petName+'야! 💕');sfxLevelUp();startAutoActions();startDustTimer();}});
+
+    // 캐릭터 터치 - 쓰다듬기와 들어올리기
+    let charLiftTimeout=null,isCharLifted=false,isCharTouched=false;
+    el.mainCharacter.addEventListener('mousedown',e=>{e.stopPropagation();startCharLift();});
+    el.mainCharacter.addEventListener('touchstart',e=>{e.stopPropagation();e.preventDefault();startCharLift();});
+    el.mainCharacter.addEventListener('mouseup',endCharLift);
+    el.mainCharacter.addEventListener('touchend',endCharLift);
+    
+    function startCharLift(){
+      if(gs.isSleeping){
+        gs.isSleeping=false;el.zzzEffect.classList.remove('show');
+        say('음냐... 일어났어! ☀️');sfxClick();updateUI();return;
+      }
+      isCharTouched=true;
+      charLiftTimeout=setTimeout(()=>{
+        isCharLifted=true;
+        setAnim('lifted');
+        say(['으앙! 😱','내려줘! 🥺','높아! 😰','무서워! 😣','어어억!'][Math.floor(Math.random()*5)]);
+        sfxClick();
+      },400);
+    }
+    function endCharLift(){
+      clearTimeout(charLiftTimeout);
+      if(isCharLifted){
+        isCharLifted=false;
+        setAnim('falling',400);
+        setTimeout(()=>{say('아야! 😣');sfxError();gs.happiness=Math.max(0,gs.happiness-3);updateUI();setTimeout(()=>setAnim(''),300);},350);
+      }else if(isCharTouched){
+        petCharacter();
+      }
+      isCharTouched=false;
+    }
+    
+    // 화면 꾹 누르면 캐릭터가 따라오기
+    let stageHoldTimeout=null,isStageHeld=false,followInterval=null;
+    const FOLLOW_MSGS=['놀아주는 거야? 🤔','어디 가? 👀','따라갈게! 🐾','뭐해뭐해? 😊','나도 같이! 🎈'];
+    
+    el.mainStage.addEventListener('mousedown',e=>startStageHold(e));
+    el.mainStage.addEventListener('touchstart',e=>startStageHold(e));
+    el.mainStage.addEventListener('mouseup',endStageHold);
+    el.mainStage.addEventListener('touchend',endStageHold);
+    el.mainStage.addEventListener('mouseleave',endStageHold);
+    el.mainStage.addEventListener('mousemove',e=>{if(isStageHeld)moveCharToward(e);});
+    el.mainStage.addEventListener('touchmove',e=>{if(isStageHeld)moveCharToward(e);});
+    
+    function startStageHold(e){
+      if(gs.isSleeping||gs.phase!=='playing')return;
+      stageHoldTimeout=setTimeout(()=>{
+        isStageHeld=true;
+        say(FOLLOW_MSGS[Math.floor(Math.random()*FOLLOW_MSGS.length)]);
+        moveCharToward(e);
+      },300);
+    }
+    function endStageHold(){
+      clearTimeout(stageHoldTimeout);
+      isStageHeld=false;
+      if(followInterval)clearInterval(followInterval);
+    }
+    function moveCharToward(e){
+      if(!isStageHeld||gs.isSleeping)return;
+      const rect=el.mainStage.getBoundingClientRect();
+      let clientX=e.clientX||e.touches?.[0]?.clientX;
+      if(!clientX)return;
+      const x=clientX-rect.left;
+      const percent=Math.max(15,Math.min(85,(x/rect.width)*100));
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left=percent+'%';
+    }
+
+    // 가구 드래그 시스템
+    let dragTarget=null,dragTimeout=null,isDragging=false,dragOffsetX=0,dragOffsetY=0;
+    const DRAGGABLE_FURNITURE={
+      'decoLamp':{el:el.decoLamp,type:'wall'},
+      'decoShelfItems':{el:el.decoShelfItems,type:'wall'},
+      'decoFrame':{el:el.decoFrame,type:'wall'},
+      'decoClock':{el:el.decoClock,type:'wall'},
+      'decoMirror':{el:el.decoMirror,type:'wall'},
+      'decoTv':{el:el.decoTv,type:'wall'},
+      'decoAquarium':{el:el.decoAquarium,type:'floor'},
+      'decoPiano':{el:el.decoPiano,type:'floor'},
+      'decoSofa':{el:el.decoSofa,type:'floor'},
+      'furnitureBed':{el:el.furnitureBed,type:'floor'},
+      'furnitureToy':{el:el.furnitureToy,type:'floor'},
+      'furniturePlant':{el:el.furniturePlant,type:'floor'}
+    };
+    
+    function startDrag(e,id){
+      if(gs.isOutside)return;
+      const info=DRAGGABLE_FURNITURE[id];
+      if(!info)return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragTimeout=setTimeout(()=>{
+        isDragging=true;
+        dragTarget={id,el:info.el,type:info.type};
+        info.el.classList.add('dragging');
+        const rect=info.el.getBoundingClientRect();
+        const stageRect=el.mainStage.getBoundingClientRect();
+        const clientX=e.clientX||e.touches?.[0]?.clientX||0;
+        const clientY=e.clientY||e.touches?.[0]?.clientY||0;
+        dragOffsetX=clientX-rect.left;
+        dragOffsetY=clientY-rect.top;
+        say('어디로 옮길까? 🤔');
+      },400);
+    }
+    
+    function moveDrag(e){
+      if(!isDragging||!dragTarget)return;
+      e.preventDefault();
+      const stageRect=el.mainStage.getBoundingClientRect();
+      const clientX=e.clientX||e.touches?.[0]?.clientX||0;
+      const clientY=e.clientY||e.touches?.[0]?.clientY||0;
+      let x=clientX-stageRect.left-dragOffsetX;
+      let y=clientY-stageRect.top-dragOffsetY;
+      
+      // 경계 제한
+      x=Math.max(0,Math.min(stageRect.width-40,x));
+      if(dragTarget.type==='wall'){
+        y=Math.max(0,Math.min(stageRect.height*0.5,y));
+      }else{
+        y=Math.max(stageRect.height*0.35,Math.min(stageRect.height-50,y));
+      }
+      
+      dragTarget.el.style.left=x+'px';
+      dragTarget.el.style.top=y+'px';
+      dragTarget.el.style.bottom='auto';
+      dragTarget.el.style.right='auto';
+      dragTarget.el.style.transform='none';
+    }
+    
+    function endDrag(){
+      clearTimeout(dragTimeout);
+      if(isDragging&&dragTarget){
+        dragTarget.el.classList.remove('dragging');
+        // 위치 저장
+        gs.furniturePos[dragTarget.id]={
+          left:dragTarget.el.style.left,
+          top:dragTarget.el.style.top
+        };
+        say('여기 좋다! ✨');
+        save();
+      }
+      isDragging=false;
+      dragTarget=null;
+    }
+    
+    // 모든 드래그 가능 가구에 이벤트 추가
+    Object.keys(DRAGGABLE_FURNITURE).forEach(id=>{
+      const info=DRAGGABLE_FURNITURE[id];
+      info.el.addEventListener('mousedown',e=>startDrag(e,id));
+      info.el.addEventListener('touchstart',e=>startDrag(e,id));
+    });
+    document.addEventListener('mousemove',moveDrag);
+    document.addEventListener('touchmove',moveDrag,{passive:false});
+    document.addEventListener('mouseup',endDrag);
+    document.addEventListener('touchend',endDrag);
+    
+    // 저장된 가구 위치 복원
+    function restoreFurniturePos(){
+      Object.keys(gs.furniturePos).forEach(id=>{
+        const info=DRAGGABLE_FURNITURE[id];
+        const pos=gs.furniturePos[id];
+        if(info&&pos){
+          info.el.style.left=pos.left;
+          info.el.style.top=pos.top;
+          info.el.style.bottom='auto';
+          info.el.style.right='auto';
+          info.el.style.transform='none';
+        }
+      });
+    }
+
+    // 데코 가구 상호작용
+    let lampOn=false;
+    el.decoLamp.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      lampOn=!lampOn;
+      el.decoLamp.classList.toggle('on',lampOn);
+      const lampMsgs=lampOn?
+        ['불 켜졌다! 💡','환해졌어! ✨','밝다 밝아! 🌟','좋아! 💕']:
+        ['불 껐다! 🌙','어두워졌어~ 😴','잘자? 💤','꺼졌다! 😊'];
+      say(lampMsgs[Math.floor(Math.random()*lampMsgs.length)]);
+      setAnim('happy',600);
+      gs.happiness=Math.min(100,gs.happiness+2);
+    });
+    
+    el.decoShelfItems.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const shelfMsgs=['책 읽을까? 📖','이 책 재밌어! 📚','식물이 자랐다! 🌱','음... 어떤 책? 🤔','공부하자! ✏️','이건 뭐지? 🧐'];
+      say(shelfMsgs[Math.floor(Math.random()*shelfMsgs.length)]);
+      setAnim('happy',800);
+      gs.happiness=Math.min(100,gs.happiness+3);
+      addExp(2);
+    });
+    
+    el.decoFrame.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const frameMsgs=['예쁜 그림이야! 🎨','누가 그렸지? 🤔','멋지다! ✨','나도 그리고 싶어! 🖌️','감상 중~ 🖼️','좋아하는 그림! 💕'];
+      say(frameMsgs[Math.floor(Math.random()*frameMsgs.length)]);
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left='60%';
+      setAnim('happy',1000);
+      gs.happiness=Math.min(100,gs.happiness+3);
+    });
+    
+    el.decoClock.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const now=new Date();
+      const hour=now.getHours();
+      const min=now.getMinutes();
+      const clockMsgs=[`지금 ${hour}시 ${min}분이야! ⏰`,'째깍째깍~ 🕰️','시간이 빨라! ⏳','벌써 이 시간? 😮','시계 소리 좋다! 🎵'];
+      say(clockMsgs[Math.floor(Math.random()*clockMsgs.length)]);
+      setAnim('happy',600);
+      gs.happiness=Math.min(100,gs.happiness+2);
+    });
+    
+    el.decoAquarium.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const aquaMsgs=['물고기다! 🐠','헤엄쳐라~ 🐟','귀엽다! 💕','밥 줘야지! 🍞','뽀글뽀글~ 🫧','물고기 친구! 🐡'];
+      say(aquaMsgs[Math.floor(Math.random()*aquaMsgs.length)]);
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left='50%';
+      setAnim('happy',1000);
+      gs.happiness=Math.min(100,gs.happiness+4);
+    });
+    
+    el.decoPiano.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const pianoMsgs=['딩동댕~ 🎹','피아노 치자! 🎵','연주 시작! 🎶','라라라~ 🎼','작곡 중! ✨','멋진 소리! 💕'];
+      say(pianoMsgs[Math.floor(Math.random()*pianoMsgs.length)]);
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left='48%';
+      setAnim('excited',1200);
+      gs.happiness=Math.min(100,gs.happiness+5);
+      addExp(3);
+    });
+    
+    el.decoMirror.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const mirrorMsgs=['내 모습이다! 🪞','오늘도 귀엽네! 😊','잘생겼다! ✨','거울아 거울아~ 👑','멋져 보여! 💕','누구지? 나야! 😆'];
+      say(mirrorMsgs[Math.floor(Math.random()*mirrorMsgs.length)]);
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left='35%';
+      setAnim('happy',800);
+      gs.happiness=Math.min(100,gs.happiness+3);
+    });
+    
+    let tvOn=false;
+    el.decoTv.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      tvOn=!tvOn;
+      el.decoTv.classList.toggle('playing',tvOn);
+      const tvMsgs=tvOn?
+        ['TV 켜자! 📺','뭐 볼까? 🎬','만화다! 🎉','재밌겠다! 😊','시청 중~ 👀']:
+        ['TV 끄자! 📴','다 봤다! ✅','눈 아파~ 😵','이제 그만! 🛑'];
+      say(tvMsgs[Math.floor(Math.random()*tvMsgs.length)]);
+      if(tvOn){
+        el.characterContainer.classList.remove('at-bed','at-toy');
+        el.characterContainer.style.left='50%';
+      }
+      setAnim('happy',800);
+      gs.happiness=Math.min(100,gs.happiness+(tvOn?4:1));
+    });
+    
+    el.decoSofa.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const sofaMsgs=['푹신해! 🛋️','편하다~ 😌','앉을래! 💺','쿠션 좋아! 💕','휴식 중~ 😊','소파 최고! ✨'];
+      say(sofaMsgs[Math.floor(Math.random()*sofaMsgs.length)]);
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left='20%';
+      setAnim('happy',1000);
+      gs.happiness=Math.min(100,gs.happiness+4);
+      gs.hunger=Math.min(100,gs.hunger+2);
+    });
+    
+    // 기존 가구 상호작용 강화
+    el.furniturePlant.addEventListener('click',()=>{
+      if(gs.isOutside||gs.isSleeping||isDragging)return;
+      sfxClick();
+      const plantMsgs=['예쁜 꽃이다! 🌷','물 줘야겠다! 💧','향기 좋아~ 🌸','꽃이 피었어! 🌺','자라고 있어! 🌱'];
+      say(plantMsgs[Math.floor(Math.random()*plantMsgs.length)]);
+      el.characterContainer.classList.remove('at-bed','at-toy');
+      el.characterContainer.style.left='75%';
+      setAnim('happy',800);
+      gs.happiness=Math.min(100,gs.happiness+2);
+    });
+
+    el.feedBtn.addEventListener('click',()=>{sfxClick();openModal('shop','food');});
+    el.playBtn.addEventListener('click',()=>{sfxClick();openModal('play');});
+    el.walkBtn.addEventListener('click',()=>toggleWalk());
+    el.shopBtn.addEventListener('click',()=>{sfxClick();openModal('shop','allowance');});
+    el.musicBtn.addEventListener('click',()=>{isMusicPlaying?stopBGM():startBGM();});
+    el.resetBtn.addEventListener('click',resetGame);
+
+    el.closeShopBtn.addEventListener('click',()=>closeModal('shop'));
+    el.closePlayBtn.addEventListener('click',()=>closeModal('play'));
+    el.shopModal.addEventListener('click',e=>{if(e.target===el.shopModal)closeModal('shop');});
+    el.playModal.addEventListener('click',e=>{if(e.target===el.playModal)closeModal('play');});
+
+    el.allowanceSubmit.addEventListener('click',submitMath);
+    el.allowanceInput.addEventListener('keypress',e=>{if(e.key==='Enter')submitMath();});
+
+    el.furnitureBed.addEventListener('click',()=>{if(isDragging)return;sfxClick();sleep();});
+    el.furnitureToy.addEventListener('click',()=>{if(isDragging)return;sfxClick();openModal('play');});
+    el.furniturePlant.addEventListener('click',()=>{sfxClick();gs.happiness=Math.min(100,gs.happiness+5);say('예쁜 꽃! 🌸');for(let i=0;i<3;i++)setTimeout(()=>spawnEffect(['🌸','💮','🌼'][i],170+Math.random()*30,80+Math.random()*20),i*80);updateUI();});
+
+    document.querySelectorAll('.shop-tab[data-tab]').forEach(btn=>{btn.addEventListener('click',()=>switchTab(btn.dataset.tab,'shop'));});
+    document.querySelectorAll('[data-playtab]').forEach(btn=>{btn.addEventListener('click',()=>switchTab(btn.dataset.playtab,'play'));});
+    document.querySelectorAll('[data-rps]').forEach(btn=>{btn.addEventListener('click',()=>playRPS(btn.dataset.rps));});
+    el.catchStart.addEventListener('click',startCatch);
+
+    el.foodItems.addEventListener('click',e=>{const item=e.target.closest('.shop-item');if(!item)return;const food=FOODS.find(f=>f.id===item.dataset.food);if(food)feed(food);});
+    el.furnitureItems.addEventListener('click',e=>{const item=e.target.closest('.shop-item');if(!item)return;const furn=FURNITURE.find(f=>f.id===item.dataset.furniture);if(!furn||gs.ownedFurniture.includes(furn.id)){if(gs.ownedFurniture.includes(furn?.id))toast('이미 가지고 있어요!');return;}if(gs.coins<furn.price){sfxError();toast('코인이 부족해요!');return;}sfxCoin();gs.coins-=furn.price;gs.ownedFurniture.push(furn.id);toast(furn.name+' 구매!');updateUI();renderShop();});
+    el.accessoryItems.addEventListener('click',e=>{const item=e.target.closest('.shop-item');if(!item)return;const acc=ACCESSORIES.find(a=>a.id===item.dataset.accessory);if(!acc)return;if(gs.ownedAccessories.includes(acc.id)){sfxClick();if(gs.equippedAccessories[acc.type]===acc.id){delete gs.equippedAccessories[acc.type];toast(acc.name+' 해제!');}else{gs.equippedAccessories[acc.type]=acc.id;toast(acc.name+' 착용!');}}else{if(gs.coins<acc.price){sfxError();toast('코인이 부족해요!');return;}sfxCoin();gs.coins-=acc.price;gs.ownedAccessories.push(acc.id);gs.equippedAccessories[acc.type]=acc.id;addExp(acc.exp);toast(acc.name+' 구매! 경험치 +'+acc.exp);}updateUI();renderShop();});
+
+    function init(){if(load()){if(gs.phase==='playing'){el.eggScreen.classList.add('hidden');el.playScreen.classList.remove('hidden');updateUI();updateDirtyOverlay();restoreFurniturePos();for(let i=0;i<gs.dustCount;i++){const dust=document.createElement('div');dust.className='dust';dust.textContent=['🧹','💨','🌫️','✨'][Math.floor(Math.random()*4)];dust.style.left=(15+Math.random()*70)+'%';dust.style.bottom=(30+Math.random()*25)+'%';dust.onclick=()=>cleanDust(dust);el.mainStage.appendChild(dust);}startAutoActions();startDustTimer();setTimeout(()=>say(gs.petName+'! 돌아왔구나! 💕'),500);}else if(gs.phase==='naming'){el.eggScreen.classList.add('hidden');el.namingScreen.classList.remove('hidden');el.newbornChar.textContent=gs.character.stages[0];el.namingTitle.textContent=gs.character.name+'가 태어났어요!';}}}
+    init();
+  </script>
+</body>
+</html>
