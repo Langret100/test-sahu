@@ -23,7 +23,7 @@
   // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) → SDK 설정 및 구성에서
   // 제공하는 구성 객체를 아래 SOCIAL_CHAT_FIREBASE_CONFIG 에 붙여넣어 주세요.
   var SOCIAL_CHAT_FIREBASE_CONFIG = {
-    apiKey: "AIzaSyCALueOFTz3SJ4wnfyDlssqK9jmu3FyV-U",
+    apiKey: "__FIREBASE_API_KEY__",
     authDomain: "web-ghost-c447b.firebaseapp.com",
     databaseURL: "https://web-ghost-c447b-default-rtdb.firebaseio.com",
     projectId: "web-ghost-c447b",
@@ -54,7 +54,8 @@
   var socialChatMode = false;
   var socialMessages = [];        // { user_id, nickname, text, ts }
   var viewCount = RECENT_DEFAULT;
-  var initialLoadedFromSheet = false;  // 시트에서 최근 메시지를 로드했는지 여부
+  var initialLoadedFromSheet = false;  // (호환) 사용하지 않음
+  var lastSheetLoadedAt = 0;
 
   var originalHandleUserSubmit = null;
   var waitingFirstReply = false;  // 내가 방금 쓴 글에 대한 첫 답글을 기다리는지 여부
@@ -122,54 +123,61 @@
   }
 
 
-  async function loadRecentMessagesFromSheet() {
-    if (initialLoadedFromSheet) return;
-    initialLoadedFromSheet = true;
+  
 
-    if (typeof postToSheet !== "function") {
-      console.warn("[social-chat] postToSheet 함수가 없어 최근 메시지를 불러올 수 없습니다.");
+async function loadRecentMessagesFromSheet(force) {
+  // "마이파-톡"(전체 대화방) 화면은 시트에서 최신글을 불러옵니다.
+  // force=true면 항상 다시 로드합니다.
+
+  if (!force) {
+    // 너무 잦은 호출 방지(짧은 디바운스)
+    if (Date.now() - lastSheetLoadedAt < 250) return;
+  }
+  lastSheetLoadedAt = Date.now();
+
+  if (typeof postToSheet !== "function") {
+    console.warn("[social-chat] postToSheet 함수가 없어 최근 메시지를 불러올 수 없습니다.");
+    return;
+  }
+
+  try {
+    var res = await postToSheet({
+      mode: "social_recent_room",
+      room_id: "global",
+      limit: MAX_BUFFER
+    });
+    if (!res || !res.ok) {
+      console.warn("[social-chat] 최근 메시지 응답이 올바르지 않습니다.");
       return;
     }
+    var text = await res.text();
+    var json;
+    try { json = JSON.parse(text); } catch (e) { return; }
+    if (!json || !json.messages) return;
 
-    try {
-      var res = await postToSheet({
-        mode: "social_recent",
-        limit: MAX_BUFFER
+    socialMessages = [];
+    (json.messages || []).forEach(function (row) {
+      if (!row) return;
+      var rawMsg = (row.text || row.chatlog || row.message || row.msg || "").toString();
+      socialMessages.push({
+        user_id: row.user_id || "",
+        nickname: row.nickname || "익명",
+        text: rawMsg,
+        ts: row.ts || row.timestamp || row.date || 0
       });
-      if (!res || !res.ok) {
-        console.warn("[social-chat] 최근 소통 메시지 응답이 올바르지 않습니다.");
-        return;
-      }
-      var text = await res.text();
-      var json;
-      try {
-        json = JSON.parse(text);
-      } catch (e) {
-        console.warn("[social-chat] 최근 소통 메시지 파싱 실패:", e);
-        return;
-      }
-      if (!json || !json.messages || !json.messages.length) {
-        return;
-      }
+    });
 
-      socialMessages = [];
-      json.messages.forEach(function (row) {
-        if (!row) return;
-        socialMessages.push({
-          user_id: row.user_id || "",
-          nickname: row.nickname || "익명",
-          text: row.message || "",
-          ts: row.ts || 0
-        });
-      });
-
-      if (socialChatMode) {
-        renderSocialMessages();
-      }
-    } catch (e) {
-      console.warn("[social-chat] 최근 소통 메시지 불러오기 실패:", e);
+    if (socialMessages.length > MAX_BUFFER) {
+      socialMessages = socialMessages.slice(socialMessages.length - MAX_BUFFER);
     }
+
+    if (socialChatMode) {
+      renderSocialMessages();
+    }
+  } catch (e) {
+    console.warn("[social-chat] 최근 메시지 불러오기 실패:", e);
   }
+}
 
   function renderSocialMessages() {
     if (!logEl || !socialChatMode) return;
@@ -210,7 +218,6 @@
 
       div.appendChild(roleSpan);
       div.appendChild(textSpan);
-      logEl.appendChild(div);
       logEl.appendChild(div);
     }
 
@@ -389,7 +396,7 @@ function setModeSocial(enabled) {
 
     if (socialChatMode) {
       chatPanel.classList.add("chat-panel-social");
-      loadRecentMessagesFromSheet();
+      loadRecentMessagesFromSheet(true);
       renderSocialMessages();
       try {
         var name = (typeof currentCharacterName === "string" && currentCharacterName.trim())
@@ -588,6 +595,31 @@ function setModeSocial(enabled) {
       };
 
       patchHandleUserSubmit();
+
+
+// signals 기반으로 "전체 대화방(global)" 실시간 갱신
+try {
+  if (window.SignalBus && typeof window.SignalBus.attach === "function") {
+    var dbSig = ensureFirebase();
+    if (dbSig) {
+      window.SignalBus.attach({
+        db: firebaseDb,
+        getMyId: function () { return getSafeUserId(); },
+        onSignal: function (info) {
+          try {
+            if (!socialChatMode) return;
+            if (!info || info.roomId !== "global") return;
+            loadRecentMessagesFromSheet(false);
+          } catch (e0) {}
+        },
+        onNotify: function () {}
+      });
+      if (typeof window.SignalBus.syncRooms === "function") {
+        window.SignalBus.syncRooms(["global"], "social-chat-global");
+      }
+    }
+  }
+} catch (eSig) {}
       startListening();
 
       console.log("[social-chat] 소통 채팅 모듈이 초기화되었습니다.");
