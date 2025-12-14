@@ -20,6 +20,8 @@
 
 (function () {
   // ----- Firebase 설정 (필수) -----
+  // [보안] 공개 repo 커밋에는 apiKey를 올리지 않습니다.
+  // apiKey는 "__FIREBASE_API_KEY__"로 두고, GitHub Actions 배포 시점에 Secrets(FIREBASE_API_KEY)로 치환합니다.
   // Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) → SDK 설정 및 구성에서
   // 제공하는 구성 객체를 아래 SOCIAL_CHAT_FIREBASE_CONFIG 에 붙여넣어 주세요.
   var SOCIAL_CHAT_FIREBASE_CONFIG = {
@@ -38,7 +40,66 @@
     SOCIAL_CHAT_FIREBASE_CONFIG = window.SOCIAL_CHAT_FIREBASE_CONFIG;
   }
 
-  var MAX_BUFFER = 100;           // 브라우저에서만 보관할 최대 메시지 수
+  var MAX_BUFFER = 100;           
+
+// ---- fix28: robust ts parse + sheet<->relay dedupe helpers ----
+function __parseTs(v) {
+  try {
+    if (typeof v === "number" && isFinite(v)) return v;
+    if (typeof v === "string") {
+      var t = v.trim();
+      if (/^\d{10,13}$/.test(t)) return Number(t);
+      var p = Date.parse(t);
+      if (!isNaN(p)) return p;
+      var n = Number(t);
+      if (!isNaN(n)) return n;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function __sigOf(user_id, text) {
+  return String(user_id || "") + "|" + String(text || "").trim();
+}
+
+function __buildRelayMidIndex(list) {
+  // map: sig|bucket -> mid (bucket = 5s)
+  var idx = {};
+  try {
+    (list || []).forEach(function (m) {
+      if (!m || !m.mid) return;
+      var ts = __parseTs(m.ts || 0);
+      var b = Math.floor(ts / 5000);
+      var sig = __sigOf(m.user_id, m.text);
+      // store a small neighborhood to be tolerant to ts drift between relay and sheet
+      for (var d = -2; d <= 2; d++) {
+        var k = sig + "|" + String(b + d);
+        if (!idx[k]) idx[k] = String(m.mid);
+      }
+    });
+  } catch (e) {}
+  return idx;
+}
+
+function __tryAttachMidFromRelayIndex(m, idx) {
+  try {
+    if (!m || m.mid) return;
+    var ts = __parseTs(m.ts || 0);
+    var b = Math.floor(ts / 5000);
+    var sig = __sigOf(m.user_id, m.text);
+    var deltas = [0, -1, 1, -2, 2, -3, 3];
+    for (var i = 0; i < deltas.length; i++) {
+      var k = sig + "|" + String(b + deltas[i]);
+      if (idx[k]) {
+        m.mid = idx[k];
+        return;
+      }
+    }
+  } catch (e) {}
+}
+// ---- end fix28 helpers ----
+
+// 브라우저에서만 보관할 최대 메시지 수
   var RECENT_DEFAULT = 5;         // 기본으로 보이는 개수
   var RECENT_EXPANDED = 10;       // 위로 스크롤 시 보이는 최대 개수
 
@@ -57,12 +118,95 @@
   var initialLoadedFromSheet = false;  // (호환) 사용하지 않음
   var lastSheetLoadedAt = 0;
 
+// ------------------------------------------------------------
+// (B안) Firebase( SignalBus /signals/<room>/q )를 '중계'로만 사용
+// - 시트 저장과 별개로 즉시 전파하여 체감 속도 개선
+// - mid 기반 디듀프/리트랙트(retract) 지원
+// ------------------------------------------------------------
+var __relaySeen = {};
+var __relaySeenOrder = [];
+var __RELAY_SEEN_MAX = 260;
+
+function __rememberRelay(mid) {
+  try {
+    if (!mid) return;
+    mid = String(mid);
+    if (__relaySeen[mid]) return;
+    __relaySeen[mid] = 1;
+    __relaySeenOrder.push(mid);
+    if (__relaySeenOrder.length > __RELAY_SEEN_MAX) {
+      var old = __relaySeenOrder.splice(0, __relaySeenOrder.length - __RELAY_SEEN_MAX);
+      old.forEach(function (k) { delete __relaySeen[k]; });
+    }
+  } catch (e) {}
+}
+
+function __hasRelay(mid) {
+  try { return !!(__relaySeen && mid && __relaySeen[String(mid)]); } catch (e) { return false; }
+}
+
+function __removeByMid(mid) {
+  try {
+    if (!mid) return false;
+    mid = String(mid);
+    var removed = false;
+    for (var i = socialMessages.length - 1; i >= 0; i--) {
+      var it = socialMessages[i];
+      if (!it) continue;
+      if (String(it.mid || "") === mid) {
+        socialMessages.splice(i, 1);
+        removed = true;
+      }
+    }
+    if (removed && socialChatMode) renderSocialMessages();
+    return removed;
+  } catch (e) { return false; }
+}
+
+function __applyRelayGlobal(msgInfo) {
+  try {
+    if (!msgInfo || msgInfo.roomId !== "global") return;
+
+    // retract 처리
+    if (String(msgInfo.kind || "") === "retract") {
+      __removeByMid(msgInfo.mid || "");
+      return;
+    }
+
+    var mid = msgInfo.mid || "";
+    if (mid && __hasRelay(mid)) return;
+    if (mid) __rememberRelay(mid);
+
+    var msg = {
+      user_id: msgInfo.user_id || "",
+      nickname: msgInfo.nickname || "익명",
+      text: msgInfo.text || "",
+      ts: msgInfo.ts || Date.now(),
+      mid: mid
+    };
+
+    // 소통 모드일 때만 화면에 즉시 반영
+    if (socialChatMode) {
+      handleIncomingMessage_(msg);
+      try {
+        if (window.SignalBus && typeof window.SignalBus.markSeenTs === "function") {
+          window.SignalBus.markSeenTs("global", msg.ts);
+        }
+      } catch (eSeen) {}
+    } else {
+      // 모드가 아니어도 버퍼에는 쌓아두되, MAX_BUFFER 유지
+      socialMessages.push(msg);
+      if (socialMessages.length > MAX_BUFFER) socialMessages.splice(0, socialMessages.length - MAX_BUFFER);
+    }
+  } catch (e) {}
+}
+
   var originalHandleUserSubmit = null;
   var waitingFirstReply = false;  // 내가 방금 쓴 글에 대한 첫 답글을 기다리는지 여부
 
   function ensureFirebase() {
     try {
-      if (firebaseDb && firebaseRef) return firebaseDb;
+      if (firebaseDb) return firebaseDb;
 
       if (typeof firebase === "undefined" || !firebase || !firebase.initializeApp) {
         console.warn("[social-chat] Firebase SDK 가 로드되지 않았습니다.");
@@ -79,7 +223,7 @@
         firebaseApp = firebase.initializeApp(SOCIAL_CHAT_FIREBASE_CONFIG);
       }
       firebaseDb = firebase.database();
-      firebaseRef = firebaseDb.ref("socialChat");
+      firebaseRef = null; // (B안) 저장용 ref 사용 안 함(중계는 SignalBus가 담당)
       return firebaseDb;
     } catch (e) {
       console.error("[social-chat] Firebase 초기화 실패:", e);
@@ -101,37 +245,56 @@
     return "";
   }
 
-  function logSocialToSheet(message, ts) {
-    try {
-      if (typeof postToSheet !== "function") return;
-      var payload = {
-        mode: "social_chat",
-        user_id: getSafeUserId(),
-        nickname: getSafeNickname(),
-        message: message,
-        ts: ts || Date.now()
-      };
-      var p = postToSheet(payload);
-      if (p && typeof p.catch === "function") {
-        p.catch(function (e) {
-          console.warn("[social-chat] 소통 시트 기록 실패:", e);
-        });
+function logSocialToSheet(message, ts, mid) {
+  try {
+    if (typeof postToSheet !== "function") return Promise.resolve(true);
+
+    var base = {
+      user_id: getSafeUserId(),
+      nickname: getSafeNickname(),
+      message: message,
+      text: message,
+      ts: ts || Date.now(),
+      mid: mid || ""
+    };
+
+    // 우선 room 방식(현재 메신저와 동일)을 시도
+    var payload1 = { mode: "social_chat_room", room_id: "global" };
+    try { for (var k1 in base) { if (Object.prototype.hasOwnProperty.call(base, k1)) payload1[k1] = base[k1]; } } catch (e0) {}
+    var p1 = postToSheet(payload1);
+    return Promise.resolve(p1).then(function (res) {
+      if (res && res.ok) return true;
+      throw new Error("sheet not ok");
+    }).catch(function () {
+      // 호환: 기존 social_chat 모드 fallback
+      try {
+        var payload2 = { mode: "social_chat" };
+        try { for (var k2 in base) { if (Object.prototype.hasOwnProperty.call(base, k2)) payload2[k2] = base[k2]; } } catch (e1) {}
+        var p2 = postToSheet(payload2);
+        return Promise.resolve(p2).then(function (res2) {
+          return !!(res2 && res2.ok);
+        }).catch(function () { return false; });
+      } catch (e2) {
+        return false;
       }
-    } catch (e) {
-      console.warn("[social-chat] 소통 시트 기록 중 오류:", e);
-    }
+    });
+  } catch (e) {
+    return Promise.resolve(false);
   }
+}
+
 
 
   
 
 async function loadRecentMessagesFromSheet(force) {
   // "마이파-톡"(전체 대화방) 화면은 시트에서 최신글을 불러옵니다.
-  // force=true면 항상 다시 로드합니다.
+  // (B안) 실시간 표시는 Firebase 중계로 즉시 반영되고,
+  // 시트 로딩은 "정렬/누락 보정" 용도로만 사용합니다(merge, 덮어쓰기 금지).
 
   if (!force) {
     // 너무 잦은 호출 방지(짧은 디바운스)
-    if (Date.now() - lastSheetLoadedAt < 250) return;
+    if (Date.now() - lastSheetLoadedAt < 350) return;
   }
   lastSheetLoadedAt = Date.now();
 
@@ -155,21 +318,54 @@ async function loadRecentMessagesFromSheet(force) {
     try { json = JSON.parse(text); } catch (e) { return; }
     if (!json || !json.messages) return;
 
-    socialMessages = [];
+    var sheetList = [];
     (json.messages || []).forEach(function (row) {
       if (!row) return;
       var rawMsg = (row.text || row.chatlog || row.message || row.msg || "").toString();
-      socialMessages.push({
+      sheetList.push({
         user_id: row.user_id || "",
         nickname: row.nickname || "익명",
         text: rawMsg,
-        ts: row.ts || row.timestamp || row.date || 0
+        ts: __parseTs(row.ts || row.timestamp || row.date || 0),
+        mid: row.mid || row.message_id || row.id || ""
       });
     });
 
-    if (socialMessages.length > MAX_BUFFER) {
-      socialMessages = socialMessages.slice(socialMessages.length - MAX_BUFFER);
+    // merge (기존 relay 메시지를 유지 + 시트 내용을 합치기)
+    var __relayIdx = __buildRelayMidIndex(socialMessages);
+    // 시트에 mid가 없더라도(스크립트가 저장하지 않는 경우) relay에서 온 동일 메시지를 찾아 mid를 붙여 중복을 막습니다.
+    sheetList.forEach(function(m){ __tryAttachMidFromRelayIndex(m, __relayIdx); });
+
+    var map = {};
+    function keyOf(m) {
+      var mid = (m && m.mid) ? String(m.mid) : "";
+      if (mid) return "m:" + mid;
+      return "k:" + String(m.user_id || "") + "|" + String(m.nickname || "") + "|" + String(m.text || "") + "|" + String(m.ts || 0);
     }
+
+    // 기존(릴레이 포함) 먼저 넣고
+    (socialMessages || []).forEach(function (m) {
+      if (!m) return;
+      map[keyOf(m)] = m;
+    });
+
+    // 시트 값으로 덮어쓰되(정답 우선), 기존 릴레이(mid 있음)와도 병합
+    sheetList.forEach(function (m) {
+      if (!m) return;
+      map[keyOf(m)] = m;
+    });
+
+    var merged = Object.keys(map).map(function (k) { return map[k]; });
+
+    merged.sort(function (a, b) {
+      return Number(a.ts || 0) - Number(b.ts || 0);
+    });
+
+    if (merged.length > MAX_BUFFER) {
+      merged = merged.slice(merged.length - MAX_BUFFER);
+    }
+
+    socialMessages = merged;
 
     if (socialChatMode) {
       renderSocialMessages();
@@ -178,6 +374,8 @@ async function loadRecentMessagesFromSheet(force) {
     console.warn("[social-chat] 최근 메시지 불러오기 실패:", e);
   }
 }
+
+
 
   function renderSocialMessages() {
     if (!logEl || !socialChatMode) return;
@@ -292,86 +490,114 @@ async function loadRecentMessagesFromSheet(force) {
   }
 
   function startListening() {
-    var db = ensureFirebase();
-    if (!db || !firebaseRef) return;
-
-    // child_added 로 새 메시지만 받고, 처리 후 즉시 삭제
-    firebaseRef.limitToLast(MAX_BUFFER).on("child_added", function (snapshot) {
-      var val = snapshot.val() || {};
-      var msg = {
-        key: snapshot.key,
-        user_id: val.user_id || "",
-        nickname: val.nickname || "익명",
-        text: val.text || "",
-        ts: val.ts || 0
-      };
-
-      handleIncomingMessage_(msg);
-
-      // Firebase 에는 기록이 남지 않도록 즉시 삭제
-      try {
-        snapshot.ref.remove();
-      } catch (e) {
-        console.warn("[social-chat] snapshot 제거 중 오류:", e);
-      }
-    });
+    // (B안) Firebase 직접 채팅경로(socialChat)를 구독하지 않습니다.
+    // 중계는 SignalBus(/signals/global/q)의 onMessage로 수신합니다.
+    return;
   }
+
+
+
 
   function sendSocialMessage(text) {
-    var trimmed = (text || "").trim();
-    if (!trimmed) return;
+  var trimmed = (text || "").trim();
+  if (!trimmed) return;
 
-    if (!window.currentUser || !window.currentUser.user_id) {
-      if (typeof showBubble === "function") {
-        showBubble("소통 채팅을 쓰려면 먼저 로그인해 주세요.");
-      }
-      if (typeof openLoginPanel === "function") {
-        try { openLoginPanel(); } catch (e) {}
-      }
-      return;
+  if (!window.currentUser || !window.currentUser.user_id) {
+    if (typeof showBubble === "function") {
+      showBubble("소통 채팅을 쓰려면 먼저 로그인해 주세요.");
     }
-
-    var db = ensureFirebase();
-    if (!db || !firebaseRef) {
-      if (typeof showBubble === "function") {
-        showBubble("소통 서버와 연결되지 않았어요. 잠시 후 다시 시도해 주세요.");
-      }
-      return;
+    if (typeof openLoginPanel === "function") {
+      try { openLoginPanel(); } catch (e) {}
     }
-
-    var now = Date.now();
-    var payload = {
-      user_id: getSafeUserId(),
-      nickname: getSafeNickname(),
-      text: trimmed,
-      ts: now
-    };
-
-    waitingFirstReply = true;
-
-    try {
-      firebaseRef.push(payload, function (err) {
-        if (err) {
-          console.error("[social-chat] 메시지 전송 실패:", err);
-          if (typeof showBubble === "function") {
-            showBubble("소통 메시지를 보내는 동안 문제가 생겼어요.");
-          }
-        }
-      });
-    } catch (e) {
-      console.error("[social-chat] 메시지 전송 중 오류:", e);
-      if (typeof showBubble === "function") {
-        showBubble("소통 메시지를 보내는 동안 문제가 생겼어요.");
-      }
-    }
-
-    // 시트 기록은 별도로, 실패하더라도 채팅에는 영향 없게
-    logSocialToSheet(trimmed, now);
-
-    if (userInput) {
-      userInput.value = "";
-    }
+    return;
   }
+
+  var db = ensureFirebase();
+  if (!db) {
+    if (typeof showBubble === "function") {
+      showBubble("소통 서버와 연결되지 않았어요. 잠시 후 다시 시도해 주세요.");
+    }
+    return;
+  }
+
+  var now = Date.now();
+  var __mid = "g_" + now + "_" + Math.random().toString(16).slice(2);
+
+  var payload = {
+    user_id: getSafeUserId(),
+    nickname: getSafeNickname(),
+    text: trimmed,
+    ts: now,
+    mid: __mid
+  };
+
+  waitingFirstReply = true;
+
+  // 낙관적 렌더 + Firebase signals 큐로 즉시 중계
+  try {
+    // 내 화면 즉시 반영
+    handleIncomingMessage_(payload);
+
+    // (중요) 내가 push한 이벤트가 내 리스너로 다시 돌아올 때
+    // 한 번 더 그려지는(2번 표시되는) 문제를 막기 위해
+    // push 전에 mid를 relay-seen에 등록합니다.
+    try { __rememberRelay(__mid); } catch (e0) {}
+
+    // 중계(저장 X)
+    if (window.SignalBus && typeof window.SignalBus.push === "function") {
+      window.SignalBus.push("global", {
+        kind: "chat",
+        mid: __mid,
+        room_id: "global",
+        user_id: payload.user_id,
+        nickname: payload.nickname,
+        text: payload.text,
+        ts: now
+      });
+    }
+
+    // 내 ts 갱신(알림 오탐 방지)
+    if (window.SignalBus && typeof window.SignalBus.markMyTs === "function") {
+      window.SignalBus.markMyTs("global", now);
+    }
+    if (window.SignalBus && typeof window.SignalBus.markSeenTs === "function") {
+      window.SignalBus.markSeenTs("global", now);
+    }
+  } catch (e) {
+    console.error("[social-chat] 중계 처리 중 오류:", e);
+  }
+
+  // 시트 기록은 별도로, 실패 시 retract
+  logSocialToSheet(trimmed, now, __mid).then(function (ok) {
+    if (ok) return;
+    // 시트 기록 실패 시: 다른 클라이언트에 취소(retract) + 내 화면도 롤백
+    try {
+      if (window.SignalBus && typeof window.SignalBus.push === "function") {
+        window.SignalBus.push("global", { kind: "retract", mid: __mid, room_id: "global", user_id: getSafeUserId(), ts: Date.now() });
+      }
+    } catch (eR) {}
+    try {
+      // 내 화면 롤백
+      for (var i = socialMessages.length - 1; i >= 0; i--) {
+        var it = socialMessages[i];
+        if (!it) continue;
+        if (String(it.mid || "") === String(__mid)) {
+          socialMessages.splice(i, 1);
+        }
+      }
+      if (socialChatMode) renderSocialMessages();
+    } catch (eL) {}
+    if (typeof showBubble === "function") {
+      showBubble("소통 메시지를 보내는 동안 문제가 생겼어요.");
+    }
+  });
+
+  if (userInput) {
+    userInput.value = "";
+  }
+}
+
+
 
   
   function updatePlusSocialButtonLabel() {
@@ -606,11 +832,16 @@ try {
         db: firebaseDb,
         getMyId: function () { return getSafeUserId(); },
         onSignal: function (info) {
+          // 큐 기반 중계(onMessage)가 기본.
+          // onSignal은 '누락 보정' 용도로만 시트 merge를 가볍게 호출합니다.
           try {
             if (!socialChatMode) return;
             if (!info || info.roomId !== "global") return;
             loadRecentMessagesFromSheet(false);
           } catch (e0) {}
+        },
+        onMessage: function (msgInfo) {
+          try { __applyRelayGlobal(msgInfo); } catch (e1) {}
         },
         onNotify: function () {}
       });

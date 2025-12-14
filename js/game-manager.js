@@ -89,10 +89,16 @@ if (chatPanel) chatPanel.classList.add("hidden");
 
     if (bgmKey) playGameBgm(bgmKey);
 
-    // '실시간 톡 보기'는 게임 시작 멘트 대신 전용 안내 멘트 사용
+    // '실시간 톡 보기(마이파 톡)'는 게임 시작 멘트 대신 전용 안내 멘트 사용
+    // - 요구사항: 아래 두 문장 중 하나만 "무작위"로 말하기 (이어 말하기/붙여 말하기 금지)
     if (isMessenger) {
       if (typeof setEmotion === "function") {
-        try { setEmotion("미소", "저는 잠시 조용히 있을게요. 나 마이파 톡을 열게요."); } catch(e){}
+        const lines = [
+          "저는 잠시 조용히 있을게요.",
+          "마이파 톡을 열게요."
+        ];
+        const pick = lines[Math.floor(Math.random() * lines.length)];
+        try { setEmotion("미소", pick); } catch(e){}
       }
     } else {
       if (typeof window.gameReact === "function"){
@@ -114,6 +120,12 @@ overlay.classList.add("hidden");
     if (chatPanel) chatPanel.classList.remove("hidden");
     if (body) body.classList.remove("is-game-mode");
 
+    // [마이파 톡 예외] 닫을 때는 다른 게임들과 달리 "닫힘 대사"를 치지 않기
+    // - 즉시 조용히 기본대기 표정으로 복귀 (말풍선 없이)
+    if (wasMessenger && typeof setEmotion === "function"){
+      try { setEmotion("기본대기", null, { silent: true }); } catch(e){}
+    }
+
     // 종료 멘트 + 감정 표현 (실시간 톡은 끌 때 아무 말도 하지 않음)
     if (!wasMessenger && typeof window.gameReact === "function"){
       try { window.gameReact("exit"); } catch(e){}
@@ -122,8 +134,14 @@ overlay.classList.add("hidden");
     // 혹시 다른 모듈에서 감정을 바꾸더라도,
     // 일정 시간이 지나면 강제로 기본대기로 한 번 더 복귀시킵니다.
     if (typeof setEmotion === "function"){
+      // 실시간 톡(마이파 톡)은 닫을 때 캐릭터가 "대사"를 치지 않도록 조용히 복귀
+      // - 기존: "기본대기"로 돌릴 때 빈 문자열(" ")이 들어가면 랜덤 대사가 나올 수 있음
+      // - 해결: wasMessenger인 경우 silent 옵션으로 표정만 복귀
       setTimeout(function(){
-        try { setEmotion("기본대기", ""); } catch(e){}
+        try {
+          if (wasMessenger) setEmotion("기본대기", null, { silent: true });
+          else setEmotion("기본대기", "");
+        } catch(e){}
       }, 6000);
     }
   }

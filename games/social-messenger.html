@@ -66,7 +66,57 @@
     .messenger-topbar-close:active {
       background: transparent;
     }
-    .messenger-body {
+    
+    /* ===== 상단바: 현재 대화방 버튼(왼쪽) ===== */
+    .messenger-topbar-roombtn{
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      max-width: min(44vw, 260px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+
+      border: 1px solid rgba(0,0,0,0.10);
+      background: #f3f4f6;
+      color: #111827;
+      border-radius: 12px; /* 각이 조금 둥근 네모 */
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .messenger-topbar-roombtn::after{
+      content: "▾";
+      font-size: 12px;
+      opacity: 0.7;
+      flex: 0 0 auto;
+    }
+    .messenger-topbar-roombtn:active{
+      background: #e5e7eb;
+    }
+
+    /* ===== 대화방 패널 열림 시 뒤 배경(클릭하면 닫힘) ===== */
+    .room-backdrop{
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 50px; /* topbar 높이 */
+      bottom: 0;
+      background: rgba(15,23,42,0.18);
+      display: none;
+      z-index: 45;
+    }
+    .room-backdrop.open{ display:block; }
+.messenger-body {
       flex: 1;
       overflow-y: auto;
       padding: 12px 10px 8px;
@@ -118,6 +168,25 @@
       background: #e5e7eb;
       color: #111827;
     }
+    /* 사진 메시지 버블 */
+    .bubble.photo-bubble {
+      padding: 6px;
+      background: #ffffff;
+    }
+    .msg-row.me .bubble.photo-bubble {
+      background: rgba(37, 99, 235, 0.10);
+    }
+    .chat-photo {
+      display: block;
+      width: 180px;
+      max-width: min(56vw, 240px);
+      height: auto;
+      border-radius: 14px;
+      box-shadow: 0 10px 20px rgba(15,23,42,0.12);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
     .bubble.emoji-only {
       background: transparent !important;
       padding: 0 !important;
@@ -144,7 +213,8 @@
       margin-bottom: 2px;
     }
     .msg-row.me .msg-meta {
-      text-align: right;
+      /* 내 메시지는 시간표시가 말풍선 반대쪽(좌측)에 오므로, 좌측 정렬 */
+      text-align: left;
     }
     .msg-row.other .msg-meta {
       text-align: left;
@@ -187,8 +257,73 @@
       font-size: 16px;
       cursor: pointer;
     }
+    .msg-camera-btn {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(148,163,184,0.25);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+    }
     .msg-emoji-btn:active {
       background: rgba(148,163,184,0.5);
+    }
+    .msg-camera-btn:active {
+      background: rgba(148,163,184,0.5);
+    }
+
+    /* =========================================================
+       [+ 첨부 메뉴]
+       - + 버튼을 누르면(사진촬영/이미지/파일) 3개 메뉴를 표시
+       - social-messenger.js 가 DOM을 생성하고, 여기 CSS가 모양을 담당
+       ========================================================= */
+    .msg-attach-menu{
+      position:absolute;
+      left: 46px; /* 😊 버튼 + 여백 기준(대략) */
+      bottom: 52px;
+      width: 160px;
+      background:#ffffff;
+      border: 1px solid rgba(148,163,184,0.45);
+      border-radius: 14px;
+      box-shadow: 0 16px 40px rgba(15,23,42,0.18);
+      padding: 6px;
+      display:none;
+      z-index: 25;
+    }
+    .msg-attach-menu.open{ display:block; }
+    .msg-attach-item{
+      width:100%;
+      border:0;
+      background:transparent;
+      padding: 10px 10px;
+      text-align:left;
+      font-size: 13px;
+      color:#111827;
+      border-radius: 12px;
+      cursor:pointer;
+    }
+    .msg-attach-item:active{
+      background: rgba(37,99,235,0.10);
+    }
+
+    /* 파일 메시지(링크) */
+    .file-bubble{
+      background:#ffffff;
+      color:#111827;
+    }
+    .msg-row.me .file-bubble{
+      background: rgba(37, 99, 235, 0.10);
+      color:#111827;
+    }
+    .file-link{
+      color: inherit;
+      text-decoration: underline;
+      word-break: break-all;
     }
     .msg-input {
       flex: 1;
@@ -291,35 +426,319 @@
     .msg-status.show {
       opacity: 1;
     }
-  </style>
+
+    /* =========================================================
+       [이미지 확대 보기]
+       - 채팅 메시지 내 img.chat-photo 또는 [data-zoomable="1"] 클릭 시
+         전체 화면으로 확대
+       - 다시 누르면(오버레이 클릭) 원래대로
+       ========================================================= */
+    body.no-scroll {
+      overflow: hidden;
+    }
+    .img-zoom-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.86);
+      z-index: 9999;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .img-zoom-overlay.open {
+      display: flex;
+    }
+    .img-zoom-overlay img {
+      max-width: 92vw;
+      max-height: 92vh;
+      width: auto;
+      height: auto;
+      border-radius: 16px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+    }
+  
+    /* ===== 대화방 ===== */
+    .messenger-main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+    }
+    .room-panel {
+      width: 240px;
+      max-width: 78vw;
+      min-width: 200px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+
+      /* 기본: 숨김(채팅창을 넓게) */
+      position: fixed;
+      left: 0;
+      top: 50px;   /* topbar 높이 */
+      bottom: 0;
+      transform: translateX(-110%);
+      transition: transform 0.18s ease-out;
+      box-shadow: 16px 0 36px rgba(15,23,42,0.18);
+      z-index: 50;
+      border-right: 1px solid rgba(0,0,0,0.06);
+    }
+    .room-panel.open {
+      transform: translateX(0);
+    }
+    .room-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 10px 8px;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .room-panel-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.2px;
+    }
+    .room-add-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: #f3f4f6;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .room-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .room-item {
+      width: 100%;
+      text-align: left;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 10px 10px;
+      cursor: pointer;
+    }
+    .room-item.active {
+      border-color: rgba(0,0,0,0.18);
+      background: #f8fafc;
+    }
+    .room-name {
+      font-size: 13px;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1.2;
+      word-break: break-word;
+    }
+    .room-meta {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    /* 방별 미확인(새 글) 표시: 오른쪽 위 점 */
+    .room-item { position: relative; padding-right: 38px; }
+    .room-unread-badge{
+      position:absolute;
+      top: 12px;
+      right: 12px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #ef4444;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.95);
+      display: none;
+    }
+    .room-unread-badge.show{ display:block; }
+
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    /* 작은 화면: 방 목록 폭을 줄이고, 필요시 스크롤 */
+    @media (max-width: 520px) {
+      .room-panel { width: 220px; min-width: 180px; }
+    }
+
+  
+    /* =========================================================
+       [채팅 링크/유튜브 미리보기/QR 스캔]
+       ========================================================= */
+    .msg-link{
+      color:#2563eb;
+      text-decoration: underline;
+      word-break: break-all;
+    }
+    .msg-link:active{ opacity: 0.8; }
+
+    .yt-preview{
+      display:flex;
+      gap:10px;
+      margin-top:8px;
+      padding:8px;
+      border:1px solid rgba(148,163,184,0.45);
+      border-radius:12px;
+      background:#ffffff;
+      text-decoration:none;
+      color:inherit;
+    }
+    .msg-row.me .yt-preview{
+      background: rgba(37, 99, 235, 0.06);
+    }
+    .yt-thumb{
+      width:96px;
+      height:54px;
+      object-fit:cover;
+      border-radius:10px;
+      flex:0 0 auto;
+      background:#e5e7eb;
+    }
+    .yt-info{
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      min-width:0;
+    }
+    .yt-title{
+      font-size:13px;
+      font-weight:700;
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .yt-host{
+      font-size:12px;
+      color:#6b7280;
+      margin-top:4px;
+    }
+
+    .qr-scan-overlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 18px;
+    }
+    .qr-scan-overlay.open{ display:flex; }
+    .qr-scan-box{
+      width: min(360px, 100%);
+      background: #ffffff;
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(15,23,42,0.25);
+      overflow: hidden;
+    }
+    .qr-scan-header{
+      padding: 12px 14px;
+      font-weight: 800;
+      border-bottom: 1px solid rgba(148,163,184,0.35);
+    }
+    .qr-scan-video{
+      width: 100%;
+      height: 260px;
+      background: #0b1220;
+      object-fit: cover;
+    }
+    .qr-scan-hint{
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #334155;
+    }
+    .qr-scan-cancel{
+      width: calc(100% - 28px);
+      margin: 0 14px 14px;
+      height: 40px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(37,99,235,0.12);
+      color: #1d4ed8;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+      .zoom-open-link{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);color:#fff;text-decoration:underline;font-size:14px;opacity:.85;display:none;z-index:10000;}
+    .img-zoom-overlay.open .zoom-open-link{display:block;}
+</style>
 </head>
 <body>
   <div class="messenger-shell">
     <div class="messenger-topbar">
+      <button class="messenger-topbar-roombtn" id="topRoomBtn" type="button" aria-expanded="false">전체 대화방</button>
       <div class="messenger-topbar-logo">
         <img src="../images/etcimage/mypai-logo.png" alt="마이파이 로고">
       </div>
       <button class="messenger-topbar-close" id="topCloseBtn" type="button">✕</button>
     </div>
-    <div id="messengerBody" class="messenger-body"></div>
-    <div class="messenger-input-bar">
+    <div id="roomBackdrop" class="room-backdrop" aria-hidden="true"></div>
+    <div class="messenger-main">
+      <div class="room-panel" id="roomPanel">
+        <div class="room-panel-header">
+          <div class="room-panel-title">대화방</div>
+          <button id="roomAddBtn" class="room-add-btn" type="button" title="대화방 만들기">＋</button>
+        </div>
+        <div id="roomList" class="room-list"></div>
+      </div>
+
+      <div class="chat-panel">
+        <!-- (숨김) 현재 방 정보: 스크립트 호환용 -->
+        <div id="roomTitle" style="display:none"></div>
+        <div id="roomSub" style="display:none"></div>
+<div id="messengerBody" class="messenger-body"></div>
+        <div class="messenger-input-bar">
       <div id="msgStatus" class="msg-status"></div>
       <div class="msg-input-wrap">
         <button id="msgEmojiBtn" class="msg-emoji-btn" type="button">😊</button>
+        <button id="msgCameraBtn" class="msg-camera-btn" type="button" title="첨부">＋</button>
         <input id="msgInput" class="msg-input" type="text" placeholder="메시지를 입력하세요">
       </div>
       <button id="msgSendBtn" class="send-btn" type="button">보내기</button>
       <div id="msgEmojiPanel" class="msg-emoji-panel"></div>
     </div>
+      </div>
+    </div>
   </div>
+
+  <!-- 이미지 확대 오버레이 (필요 시만 open) -->
+  <div id="imageZoomOverlay" class="img-zoom-overlay" aria-hidden="true">
+    <img id="imageZoomImg" alt="확대 이미지">
+  <a id="imageZoomOpenLink" class="zoom-open-link" href="#" target="_blank" rel="noopener">원본 열기</a>
+</div>
 
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script src="../js/core.js"></script>
-  <script src="../js/ui.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="../js/config.js"></script>
+<script src="../js/ui.js"></script>
   <script src="../js/messenger-close-bridge.js"></script>
   <script>window.CHAT_EMOJI_BASE_PATH = "../images/emoticon/";</script>
   <script src="../js/chat-emoji.js"></script>
+  <script src="../js/chat-photo.js"></script>
+  <script src="../js/chat-file.js"></script>
+  <script src="../js/room-unread-badge.js"></script>
+  <script src="../js/chat-rooms.js"></script>
+  <script src="../js/room-panel-toggle.js"></script>
+  <script src="../js/room-guard.js"></script>
+  <script src="../js/chat-linkify.js"></script>
+  <script src="../js/chat-qr.js"></script>
+  <script src="../js/signals.js"></script>
+  <script src="../js/room-message-stream.js"></script>
   <script src="../js/social-messenger.js"></script>
 </body>
 </html>

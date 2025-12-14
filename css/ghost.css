@@ -2328,7 +2328,7 @@ body {
 @media (max-width: 768px) {
   /* 채팅창을 네비게이션 바 위로 조금 올리고 최대 높이를 줄입니다. */
   #chatPanel {
-    bottom: 72px;           /* 기본보다 살짝 위로 */
+    bottom: 62px;           /* (요청) 기본 대비 10px 아래로 */
     max-height: 58vh;       /* 너무 위로 길게 늘어나지 않도록 제한 */
   }
 
@@ -2346,26 +2346,6 @@ body {
     max-width: 70vw;
     font-size: 0.92rem;
     padding: 9px 12px;
-
-  /* 모바일에서 + 버튼을 화면 좌측 상단에 반투명하게 배치 */
-  .ghost-plus-wrapper {
-    position: fixed;
-    top: 14px;
-    left: 16px;
-    z-index: 50;
-  }
-  #ghostPlus {
-    opacity: 0.5;
-  }
-
-  /* + 버튼 메뉴는 위쪽에서 아래로 펼쳐지도록 위치 조정 */
-  #plusMenu {
-    top: 40px;
-    bottom: auto;
-    left: 0;
-    right: auto;
-  }
-    margin-right: 6px;
   }
 }
 
@@ -2408,7 +2388,7 @@ body {
 
   /* 채팅 도크를 네비게이션 바 바로 위에 가깝게 배치 */
   #chatDock {
-    bottom: 72px;
+    bottom: 62px;
   }
 
   /* 모바일 키보드 열림 시 로그인 패널을 화면 하단으로 내리기 */
@@ -2416,7 +2396,6 @@ body {
     top: 56%;
     bottom: auto;
     max-width: min(420px, 94vw);
-    max-height: 80vh
     max-height: 80vh;
     transform: translate(-50%, -50%);
     width: min(420px, 94vw);
