@@ -278,6 +278,29 @@
     }
 
     /* =========================================================
+       [버튼 꾹 누름(롱프레스) 방지]
+       - 입력창 주변(😊, +, 보내기) 및 첨부/이모티콘 패널 버튼을
+         꾹 눌렀을 때 파란 하이라이트/컨텍스트 메뉴가 뜨는 현상 방지
+       - 클릭/탭 기능은 유지
+       ========================================================= */
+    .messenger-input-bar button,
+    .msg-attach-menu button,
+    .msg-emoji-panel button {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      outline: none;
+      touch-action: manipulation;
+    }
+    .messenger-input-bar button:focus,
+    .msg-attach-menu button:focus,
+    .msg-emoji-panel button:focus {
+      outline: none;
+    }
+
+
+    /* =========================================================
        [+ 첨부 메뉴]
        - + 버튼을 누르면(사진촬영/이미지/파일) 3개 메뉴를 표시
        - social-messenger.js 가 DOM을 생성하고, 여기 CSS가 모양을 담당
@@ -726,6 +749,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="../js/config.js"></script>
 <script src="../js/ui.js"></script>
+  <script src="../js/messenger-press-guard.js"></script>
   <script src="../js/messenger-close-bridge.js"></script>
   <script>window.CHAT_EMOJI_BASE_PATH = "../images/emoticon/";</script>
   <script src="../js/chat-emoji.js"></script>
