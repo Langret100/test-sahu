@@ -262,11 +262,11 @@ const CHARACTERS = {
     basePath: EMO_BASE_PATH,
     intro: (name) => {
       const lines = [
-        `${name}. 퉁퉁.`,
-        `${name}. 퉁-?`,
-        `${name}. 퉁투르퉁퉁.`,
-        `${name}. 투-웅.`,
-        `${name}. 퉁퉁퉁투퉁!`
+        `${name}. 퉁퉁. 퉁퉁퉁.`,
+        `${name}-퉁-?`,
+        `${name}. 너 역시 함께 퉁투퉁투퉁-`,
+        `${name}. 퉁투르퉁ㅌ퉁.`,
+        `${name}. ㅌ ㅌ ㅌ ㅌ ㅌ ㅌㅌ ㅌ ㅌ ㅌ ㅌ!`
       ];
       const idx = Math.floor(Math.random() * lines.length);
       return lines[idx];
@@ -274,9 +274,9 @@ const CHARACTERS = {
   },
   minsu: {
     key: "minsu",
-    name: "민수",
+    name: "미나",
     basePath: "images/emotions_ma1/",
-    intro: (name) => name + "야. 오늘도 같이 놀아볼까?",
+    intro: (name) => name + ". 오늘도 같이 놀아볼까?",
   },
 };
 

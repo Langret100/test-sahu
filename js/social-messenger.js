@@ -1985,14 +1985,28 @@ attachEvents();
         var initialRoomId = "";
     var initialRoomName = "";
     try {
-      var rid = localStorage.getItem("ghostActiveRoomId");
+      // ✅ 딥링크 지원: ?room=ROOM_ID 로 들어오면 해당 방으로 바로 진입
+      // roomId는 Firebase 방 키(socialChatRooms/{roomId})를 의미합니다.
+      var urlRoomId = "";
+      try {
+        var sp = new URLSearchParams(window.location.search || "");
+        urlRoomId = (sp.get("room") || "").trim();
+      } catch(e) { urlRoomId = ""; }
+
+var rid = localStorage.getItem("ghostActiveRoomId");
       var rname = localStorage.getItem("ghostActiveRoomName");
       if (rid && String(rid).trim()) initialRoomId = String(rid).trim();
       if (rname && String(rname).trim()) initialRoomName = String(rname).trim();
     } catch (e1) {}
 
     // 저장된 방이 있으면 그 방으로, 없으면 기본 '전체 대화방(global)'로 접속
-    if (!initialRoomId) {
+    // URL room 파라미터가 있으면 localStorage 값보다 우선합니다.
+      if (urlRoomId) {
+        initialRoomId = urlRoomId;
+        initialRoomName = "";
+      }
+
+if (!initialRoomId) {
       initialRoomId = "global";
       if (!initialRoomName) initialRoomName = "전체 대화방";
     }
