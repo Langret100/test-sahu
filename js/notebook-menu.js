@@ -70,6 +70,42 @@ function initNotebookMenu() {
 
   const notebookTitleEl = overlay.querySelector(".notebook-title");
   const notebookSubtitleEl = overlay.querySelector(".notebook-subtitle");
+  const notebookCoinHudEl = overlay.querySelector("#notebookCoinHud");
+  const notebookCoinTextEl = overlay.querySelector("#notebookCoinText");
+
+  function setNotebookCoinText(textValue, needsLogin) {
+    if (!notebookCoinHudEl || !notebookCoinTextEl) return;
+    notebookCoinTextEl.textContent = textValue || "0";
+    notebookCoinHudEl.classList.toggle("is-login-needed", !!needsLogin);
+  }
+
+  async function refreshNotebookCoinStatus() {
+    if (!notebookCoinHudEl || !notebookCoinTextEl) return;
+
+    const user = window.currentUser;
+    const isGuest = !!(user && (user.isGuest || String(user.user_id || "").indexOf("guest-") === 0));
+    if (!user || !user.user_id || isGuest) {
+      setNotebookCoinText("로그인을 해야해!", true);
+      return;
+    }
+
+    setNotebookCoinText("...", false);
+
+    if (typeof window.__ghostFetchCoinStatus === "function") {
+      try {
+        const result = await window.__ghostFetchCoinStatus(user);
+        if (!result || !result.ok) {
+          setNotebookCoinText("로그인을 해야해!", true);
+          return;
+        }
+        const coin = Math.max(0, parseInt(result.coin, 10) || 0);
+        setNotebookCoinText(coin >= 100 ? "MAX" : String(coin), false);
+        return;
+      } catch (e) {}
+    }
+
+    setNotebookCoinText("0", false);
+  }
 
   // 수첩 헤더를 현재 로그인 사용자 닉네임 기준으로 갱신
   function refreshNotebookHeader() {
@@ -82,6 +118,7 @@ function initNotebookMenu() {
       notebookTitleEl.textContent = "누군가의 수첩";
     }
     notebookSubtitleEl.textContent = "원하는 메모지를 눌러 보세요.";
+    refreshNotebookCoinStatus();
   }
 
   function openNotebookMenu() {
@@ -99,6 +136,7 @@ function initNotebookMenu() {
     }
 
     refreshNotebookHeader();
+    refreshNotebookCoinStatus();
 
     playPaperSound();
 
@@ -143,6 +181,7 @@ function initNotebookMenu() {
       if (window.__ghostRefreshCoinStatusBar) {
         try { window.__ghostRefreshCoinStatusBar(); } catch (e) {}
       }
+      refreshNotebookCoinStatus();
     }, 180);
   }
 
@@ -308,6 +347,13 @@ function initNotebookMenu() {
   });
 
   // 전역으로 열기/닫기 함수 노출
+  try {
+    window.addEventListener("ghost:userChanged", function(){
+      try { refreshNotebookHeader(); } catch (e) {}
+      try { refreshNotebookCoinStatus(); } catch (e) {}
+    });
+  } catch (e) {}
+
   window.openNotebookMenu = openNotebookMenu;
   window.closeNotebookMenu = closeNotebookMenu;
 }

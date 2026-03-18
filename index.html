@@ -124,6 +124,7 @@ body.is-game-mode #ghost {
               <button data-action="menu">📔 메뉴</button>
                             <button data-action="login">🔑 로그인</button>
 <button data-action="settings">🔊 읽어주기</button>
+<button id="plusBarobaroBtn" data-action="barobaro">🎙️ 바로바로! <span class="barobaro-state" id="barobaroStateLabel">꺼짐</span></button>
             </div>
           </div>
         </div>
@@ -291,6 +292,10 @@ body.is-game-mode #ghost {
       <div class="notebook-left">
         <div class="notebook-title">고스트 수첩</div>
         <div class="notebook-subtitle">원하는 메모지를 눌러 보세요.</div>
+        <div class="notebook-coin-hud" id="notebookCoinHud" aria-live="polite">
+          <span class="coin-icon" aria-hidden="true"></span>
+          <span class="coin-text" id="notebookCoinText">로그인을 해야해!</span>
+        </div>
       </div>
       <div class="notebook-right">
         <div class="memo-grid">
@@ -418,6 +423,7 @@ body.is-game-mode #ghost {
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   <script src="js/social-chat-firebase.js"></script>
+  <script src="js/always-listen.js"></script>
 
   <!-- [옵션 기능] 실시간 톡(메신저) 답글 말풍선 알림 (메신저를 열지 않았을 때)
        - signals.js + messenger-reply-ghost-bubble.js

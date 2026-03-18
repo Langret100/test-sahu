@@ -134,6 +134,15 @@
   }
 
   
+
+  function emitUserChanged() {
+    if (typeof window !== "undefined" && typeof window.dispatchEvent === "function" && typeof CustomEvent === "function") {
+      try {
+        window.dispatchEvent(new CustomEvent("ghost:userChanged", { detail: { user: window.currentUser || null } }));
+      } catch (e) {}
+    }
+  }
+
   function updatePlusMenuLoginLabel() {
     var menu = document.getElementById("plusMenu");
     if (!menu) return;
@@ -225,7 +234,8 @@ setStatus("로그인에 성공했어요!");
       }
 
       updateLogoutVisibility();
-    updatePlusMenuLoginLabel();
+      updatePlusMenuLoginLabel();
+      emitUserChanged();
       setTimeout(closeLoginPanel, 800);
       setTimeout(function () {
         if (window.AttendanceWeekly && typeof AttendanceWeekly.handleLoginSuccess === "function") {
@@ -284,7 +294,8 @@ setStatus("로그인에 성공했어요!");
       }
 
       updateLogoutVisibility();
-    updatePlusMenuLoginLabel();
+      updatePlusMenuLoginLabel();
+      emitUserChanged();
       setTimeout(closeLoginPanel, 800);
       setTimeout(function () {
         if (window.AttendanceWeekly && typeof AttendanceWeekly.handleLoginSuccess === "function") {
@@ -311,6 +322,7 @@ setStatus("로그인에 성공했어요!");
     }
     updateLogoutVisibility();
     updatePlusMenuLoginLabel();
+    emitUserChanged();
   }
 
   // ==============================
@@ -364,8 +376,8 @@ setStatus("로그인에 성공했어요!");
           showBubble(window.currentUser.nickname + "님, 가볍게 놀다 가요!");
         }
         updateLogoutVisibility();
-    updatePlusMenuLoginLabel();
         updatePlusMenuLoginLabel();
+        emitUserChanged();
         setTimeout(closeLoginPanel, 600);
       setTimeout(function () {
         if (window.AttendanceWeekly && typeof AttendanceWeekly.handleLoginSuccess === "function") {

@@ -187,6 +187,38 @@
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
+
+    .bubble.dice-response {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.2;
+      flex-wrap: wrap;
+    }
+    .bubble .dice-icons-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 10px;
+      flex-wrap: wrap;
+    }
+    .bubble .dice-icon-large {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      font-size: 56px;
+      line-height: 1;
+      border-radius: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #f3f6ff 100%);
+      box-shadow: 0 8px 18px rgba(30,41,59,0.16), inset 0 1px 0 rgba(255,255,255,0.95);
+      border: 1px solid rgba(148,163,184,0.32);
+      transform: translateY(2px);
+    }
+    .bubble .dice-text-rest {
+      display: inline-block;
+    }
     .bubble.emoji-only {
       background: transparent !important;
       padding: 0 !important;

@@ -248,6 +248,19 @@ if (typeof setEmotion === "function") {
         } else if (typeof showBubble === "function") {
           showBubble("이 브라우저에서는 아직 음성 읽어주기를 쓸 수 없어요.");
         }
+      } else if (action === "barobaro") {
+        if (window.AlwaysListen && typeof window.AlwaysListen.toggle === "function") {
+          try {
+            window.AlwaysListen.toggle();
+          } catch (err) {
+            console.error("AlwaysListen toggle error:", err);
+            if (typeof showBubble === "function") {
+              showBubble("바로바로! 기능을 켜는 중 문제가 생겼어요.");
+            }
+          }
+        } else if (typeof showBubble === "function") {
+          showBubble("바로바로! 기능이 아직 준비되지 않았어요.");
+        }
       }
 
       plusMenu.classList.remove("open");

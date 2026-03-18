@@ -598,6 +598,283 @@ var NotifySetting = (function () {
     return false;
   }
 
+  var __bridgeReqSeq = 0;
+  var __bridgePending = {};
+
+  function setupParentCoreBridge() {
+    if (setupParentCoreBridge._bound) return;
+    setupParentCoreBridge._bound = true;
+    window.addEventListener("message", function (ev) {
+      var data = ev && ev.data;
+      if (!data || data.type !== "WG_CORE_BRIDGE_RESPONSE") return;
+      var requestId = data.requestId || "";
+      var pending = __bridgePending[requestId];
+      if (!pending) return;
+      delete __bridgePending[requestId];
+      clearTimeout(pending.timer);
+      if (data.ok) pending.resolve(data.result);
+      else pending.reject(new Error(data.error || "bridge error"));
+    });
+  }
+
+  function callParentCoreBridge(method, args, timeoutMs) {
+    setupParentCoreBridge();
+    return new Promise(function (resolve, reject) {
+      try {
+        if (!window.parent || window.parent === window || typeof window.parent.postMessage !== "function") {
+          reject(new Error("parent bridge unavailable"));
+          return;
+        }
+        var requestId = "wgreq_" + Date.now() + "_" + (++__bridgeReqSeq);
+        var timer = setTimeout(function () {
+          delete __bridgePending[requestId];
+          reject(new Error("bridge timeout"));
+        }, Math.max(250, timeoutMs || 1200));
+        __bridgePending[requestId] = { resolve: resolve, reject: reject, timer: timer };
+        window.parent.postMessage({
+          type: "WG_CORE_BRIDGE_REQUEST",
+          requestId: requestId,
+          method: String(method || ""),
+          args: Array.isArray(args) ? args : []
+        }, "*");
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function getCharacterName() {
+    function normalizeName(v) {
+      var s = String(v || "").trim();
+      if (!s) return "";
+      if (s === "mina") return "미나";
+      if (s === "minsu") return "민수";
+      return s;
+    }
+    try {
+      if (window.parent && window.parent.GhostCoreBridge && typeof window.parent.GhostCoreBridge.getCurrentCharacterName === "function") {
+        var viaBridge = normalizeName(window.parent.GhostCoreBridge.getCurrentCharacterName());
+        if (viaBridge) return viaBridge;
+      }
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent.currentCharacterName) {
+        var parentName = normalizeName(window.parent.currentCharacterName);
+        if (parentName) return parentName;
+      }
+    } catch (e1) {}
+    try {
+      if (window.currentCharacterName) {
+        var ownName = normalizeName(window.currentCharacterName);
+        if (ownName) return ownName;
+      }
+    } catch (e2) {}
+    try {
+      var savedKey = localStorage.getItem("ghostCurrentCharacter");
+      if (savedKey === "mina") return "미나";
+      if (savedKey === "minsu") return "민수";
+      var savedName = localStorage.getItem("ghostCurrentCharacterName");
+      if (savedName) return normalizeName(savedName);
+    } catch (e3) {}
+    return "미나";
+  }
+
+  async function maybeGetLearnPattern(text) {
+    try {
+      return await callParentCoreBridge("parseLearnPatternFromText", [text], 900);
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent.GhostCoreBridge && typeof window.parent.GhostCoreBridge.parseLearnPatternFromText === "function") {
+        return window.parent.GhostCoreBridge.parseLearnPatternFromText(text);
+      }
+    } catch (e2) {}
+    return null;
+  }
+
+  async function saveLearnPattern(entry) {
+    if (!entry) return false;
+    try {
+      await callParentCoreBridge("saveLearnedReaction", [entry.trigger, entry.message, entry.motion || ""], 900);
+      return true;
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent.GhostCoreBridge && typeof window.parent.GhostCoreBridge.saveLearnedReaction === "function") {
+        window.parent.GhostCoreBridge.saveLearnedReaction(entry.trigger, entry.message, entry.motion || "");
+        return true;
+      }
+    } catch (e2) {}
+    return false;
+  }
+
+  async function extractCharacterCallPayload(text) {
+    var raw = String(text || "").trim();
+    var name = String(getCharacterName() || "").trim();
+    if (!raw || !name) return null;
+
+    try {
+      var bridgedAsync = await callParentCoreBridge("extractCharacterCallText", [raw], 900);
+      if (bridgedAsync != null) {
+        var cleanBridged = String(bridgedAsync || "").trim();
+        return cleanBridged || "__CALL_ONLY__";
+      }
+    } catch (e) {}
+
+    try {
+      if (window.parent && window.parent.GhostCoreBridge && typeof window.parent.GhostCoreBridge.extractCharacterCallText === "function") {
+        var bridged = window.parent.GhostCoreBridge.extractCharacterCallText(raw);
+        if (bridged != null) {
+          var clean = String(bridged || "").trim();
+          return clean || "__CALL_ONLY__";
+        }
+      }
+    } catch (e2) {}
+
+    function escapeRegExp(v) {
+      return String(v || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    var esc = escapeRegExp(name);
+    var patterns = [
+      new RegExp("^" + esc + "(?:야|아|님)?(?:[\\s,!！?.~…:]*)$", "i"),
+      new RegExp("^" + esc + "(?:야|아|님)?(?:[\\s,!！?.~…:]*)?(.*)$", "i")
+    ];
+
+    for (var i = 0; i < patterns.length; i++) {
+      var m = raw.match(patterns[i]);
+      if (!m) continue;
+      var rest = String(m[1] || "").trim();
+      return rest || "__CALL_ONLY__";
+    }
+    return null;
+  }
+
+  async function getCharacterReplyPayload(text, originalText) {
+    try {
+      var bridgedAsync = await callParentCoreBridge("getUnifiedCharacterChatResponse", [String(originalText || text || "").trim(), { allowCharacterCall: true }], 2200);
+      if (bridgedAsync && bridgedAsync.line) return bridgedAsync;
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent.GhostCoreBridge) {
+        if (typeof window.parent.GhostCoreBridge.getUnifiedCharacterChatResponse === "function") {
+          return await window.parent.GhostCoreBridge.getUnifiedCharacterChatResponse(String(originalText || text || "").trim(), { allowCharacterCall: true });
+        }
+        if (typeof window.parent.GhostCoreBridge.getCharacterChatResponse === "function") {
+          return await window.parent.GhostCoreBridge.getCharacterChatResponse(text);
+        }
+      }
+    } catch (e2) {}
+    var raw = String(text || "").trim();
+    if (!raw) return null;
+    if (raw === "__CALL_ONLY__") {
+      return { emotion: "기쁨", line: "응, 듣고 있어. 하고 싶은 말을 이어서 해줘!" };
+    }
+    return { emotion: "경청", line: "응, 듣고 있어. 조금만 더 자세히 말해줄래?" };
+  }
+
+  function sendCharacterMessage(text, opts) {
+    var clean = String(text || "").trim();
+    if (!clean || !currentRoomId) return false;
+    var now = Date.now();
+    var name = (opts && opts.nickname) ? String(opts.nickname).trim() : getCharacterName();
+    var charId = (opts && opts.user_id) ? String(opts.user_id) : ("ghostbot:" + name);
+    var mid = "g_" + now + "_" + Math.random().toString(16).slice(2);
+    var localKey = "local_ghost_" + mid;
+    try {
+      messages.push({
+        key: localKey,
+        mid: mid,
+        user_id: charId,
+        nickname: name,
+        text: clean,
+        type: "text",
+        ts: now,
+        room_id: currentRoomId || "",
+        ghost_message: "1"
+      });
+      if (messages.length > MAX_BUFFER) {
+        messages.splice(0, messages.length - MAX_BUFFER);
+      }
+      renderAll();
+    } catch (eLocal) {}
+    try {
+      __rememberRelay(mid);
+      if (window.SignalBus && typeof window.SignalBus.push === "function") {
+        window.SignalBus.push(currentRoomId || "", {
+          kind: "chat",
+          mid: mid,
+          room_id: currentRoomId || "",
+          user_id: charId,
+          nickname: name,
+          text: clean,
+          ts: now,
+          ghost_message: "1"
+        });
+      }
+    } catch (e0) {}
+    try {
+      if (typeof window.postToSheet !== "function") throw new Error("postToSheet missing");
+      window.postToSheet({
+        mode: "social_chat_room",
+        room_id: currentRoomId || "",
+        mid: mid,
+        user_id: charId,
+        nickname: name,
+        message: clean,
+        text: clean,
+        ts: now,
+        ghost_message: "1"
+      }).then(function () {
+        scheduleRoomRefresh(currentRoomId || "");
+      }).catch(function(err){
+        console.warn("[messenger] 캐릭터 메시지 전송 실패:", err);
+      });
+      return true;
+    } catch (e) {
+      console.warn("[messenger] 캐릭터 메시지 전송 예외:", e);
+      return false;
+    }
+  }
+
+  function maybeSendRandomEmojiReply() {
+    if (!currentRoomId) return;
+    if (Math.random() > 0.01) return;
+    var code = 1 + Math.floor(Math.random() * 12);
+    setTimeout(function(){
+      sendCharacterMessage(":e" + code + ":");
+    }, 260 + Math.floor(Math.random() * 700));
+  }
+
+  async function maybeHandleGhostFollowups(originalText) {
+    var raw = String(originalText || "").trim();
+    if (!raw) return;
+
+    var learn = await maybeGetLearnPattern(raw);
+    if (learn) {
+      await saveLearnPattern(learn);
+      setTimeout(function(){
+        sendCharacterMessage('좋아! "' + learn.trigger + '"라고 하면 "' + learn.message + '"라고 반응할게.');
+      }, 180);
+      return;
+    }
+
+    var payload = await extractCharacterCallPayload(raw);
+    if (!payload) return;
+
+    try {
+      console.log('[messenger] character call:', { name: getCharacterName(), raw: raw, payload: payload });
+    } catch (eLog) {}
+
+    var reply = await getCharacterReplyPayload(payload, raw);
+    if (!reply || !reply.line) {
+      reply = (payload === '__CALL_ONLY__')
+        ? { emotion: '기쁨', line: '응! 부르면 바로 갈게. 하고 싶은 말을 이어서 해줘!' }
+        : { emotion: '경청', line: '응, 보고 있어. 조금만 더 자세히 말해줘!' };
+    }
+    setTimeout(function(){
+      sendCharacterMessage(reply.line, { emotion: reply.emotion || '' });
+    }, 220);
+  }
+
   function showStatus(text) {
     if (!statusEl) return;
     statusEl.textContent = text;
@@ -632,6 +909,34 @@ var NotifySetting = (function () {
     span.textContent = formatDateLabel(ts);
     wrap.appendChild(span);
     bodyEl.appendChild(wrap);
+  }
+
+
+
+  function renderDiceRichText(text, container) {
+    if (!container || !text) return false;
+    var m = String(text).match(/^(([⚀⚁⚂⚃⚄⚅]\s*){1,4})(.*)$/);
+    if (!m) return false;
+    container.innerHTML = "";
+    container.classList.add("dice-response");
+    var wrap = document.createElement("span");
+    wrap.className = "dice-icons-wrap";
+    var icons = String(m[1] || "").match(/[⚀⚁⚂⚃⚄⚅]/g) || [];
+    icons.forEach(function(face){
+      var icon = document.createElement("span");
+      icon.className = "dice-icon-large";
+      icon.textContent = face;
+      wrap.appendChild(icon);
+    });
+    container.appendChild(wrap);
+    var tail = String(m[3] || "").trim();
+    if (tail) {
+      var rest = document.createElement("span");
+      rest.className = "dice-text-rest";
+      rest.textContent = tail;
+      container.appendChild(rest);
+    }
+    return true;
   }
 
   function appendMessage(msg) {
@@ -721,14 +1026,16 @@ var NotifySetting = (function () {
       } else {
       var emojiOnly = isEmojiOnlyText(text);
       if (emojiOnly) bubble.classList.add("emoji-only");
-      if (typeof window.renderTextWithEmojis === "function") {
-        try {
-          window.renderTextWithEmojis(text, bubble);
-        } catch (e) {
+      if (!renderDiceRichText(text, bubble)) {
+        if (typeof window.renderTextWithEmojis === "function") {
+          try {
+            window.renderTextWithEmojis(text, bubble);
+          } catch (e) {
+            bubble.textContent = text;
+          }
+        } else {
           bubble.textContent = text;
         }
-      } else {
-        bubble.textContent = text;
       }
       }
       }
@@ -1411,11 +1718,35 @@ function scheduleRoomRefresh(roomId) {
           renderAll();
         } catch (e0) {}
       });
+
+      try { maybeHandleGhostFollowups(clean); } catch (eFollow) {}
+      try { maybeSendRandomEmojiReply(); } catch (eEmoji) {}
     } catch (e) {
       console.warn("[messenger] 전송 예외:", e);
       showStatus("전송 중 문제가 생겼어요.");
     }
   }
+
+  function receiveParentCommand(data) {
+    if (!data || typeof data !== "object") return false;
+    if (data.type === "WG_MESSENGER_SEND_TEXT") {
+      sendTextMessage(data.text || "");
+      return true;
+    }
+    return false;
+  }
+
+  try {
+    window.addEventListener("message", function (ev) {
+      try { receiveParentCommand(ev && ev.data); } catch (e) {}
+    });
+  } catch (e) {}
+
+  window.MessengerVoiceBridge = {
+    sendText: function (text) {
+      sendTextMessage(text || "");
+    }
+  };
 
   function sendCurrentMessage() {
     if (!msgInput) return;

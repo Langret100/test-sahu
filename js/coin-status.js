@@ -101,6 +101,10 @@
     return null;
   }
 
+  function isGuestUser(user) {
+    return !!(user && (user.isGuest || String(user.user_id || "").indexOf("guest-") === 0));
+  }
+
   function getCurrentUserId() {
     var user = getCurrentUser();
     if (!user || !user.user_id) return null;

@@ -39,18 +39,30 @@
     return false;
   }
 
+  function speakEmotion(line) {
+    try {
+      if (typeof window.setEmotion === "function") {
+        window.setEmotion("기쁨", line);
+        return;
+      }
+    } catch (e) {}
+    try {
+      if (typeof window.showBubble === "function") window.showBubble(line);
+    } catch (e2) {}
+  }
+
+  function isMessengerCommand(rawText, compact) {
+    var text = String(rawText || "");
+    if (!compact) return false;
+    if (/((실시간\s*톡|메신저|마이\s*톡|마이톡|톡톡|마이파)(을|를)?\s*(열어|열어줘|켜|켜줘|보여줘|띄워|실행))/i.test(text)) return true;
+    return compact === "톡톡" || compact === "마이파" || compact === "메신저" || compact === "마이톡" || compact === "실시간톡" || compact === "실시간톡보기" || compact === "실시간톡열어줘";
+  }
+
   // text: 원문, compact: 공백 제거 문자열
   window.handleMessengerCommand = function (text, compact) {
     if (!compact) return false;
 
-    // 사용자가 요청한 트리거(정확 매칭)
-    var hit =
-      compact === "톡톡" ||
-      compact === "마이파" ||
-      compact === "메신저" ||
-      compact === "실시간톡" ||
-      compact === "실시간톡보기" ||
-      compact === "실시간톡열어줘";
+    var hit = isMessengerCommand(text, compact);
 
     if (!hit) return false;
 
@@ -71,7 +83,10 @@
           showBubble("실시간 톡을 여는 기능이 준비되지 않았어요.");
         } catch (e) {}
       }
+      return true;
     }
+
+    speakEmotion("실시간 톡을 열어둘게. 편하게 말 걸어줘!");
     return true;
   };
 })();

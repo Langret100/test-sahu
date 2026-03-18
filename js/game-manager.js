@@ -107,6 +107,27 @@ if (chatPanel) chatPanel.classList.add("hidden");
     }
   }
 
+
+  function isMessengerOpen(){
+    try {
+      return !!(overlay && !overlay.classList.contains("hidden") && (overlay.classList.contains("mode-messenger") || (overlay.dataset && overlay.dataset.mode === "messenger")));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function sendMessengerText(text){
+    if (!isMessengerOpen() || !frame || !frame.contentWindow) return false;
+    var clean = String(text || "").trim();
+    if (!clean) return false;
+    try {
+      frame.contentWindow.postMessage({ type: "WG_MESSENGER_SEND_TEXT", text: clean }, "*");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function exitGame(){
     if (!overlay || !frame) return;
     const wasMessenger = (overlay.classList.contains("mode-messenger") || (overlay.dataset && overlay.dataset.mode === "messenger"));
@@ -157,6 +178,8 @@ overlay.classList.add("hidden");
   window.launchMessenger = function(){ enterGame("games/social-messenger.html","messenger"); };
 
   window.exitGame = exitGame;
+  window.isMessengerOpen = isMessengerOpen;
+  window.sendMessengerText = sendMessengerText;
 
   // iframe(게임/실시간 톡) 내부에서 닫기 요청이 오는 경우(postMessage)
   window.addEventListener("message", function(ev){

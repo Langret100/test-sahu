@@ -5,6 +5,8 @@
 (function(){
   const STORAGE_KEY = "ghostTTSOn";
   const VOICE_KEY = "ghostTTSVoice";
+  const RATE_KEY = "ghostTTSRate";
+  const TONE_KEY = "ghostTTSTone";
 
   // Web Speech API 가 없는 환경에서는 바로 비활성화
   const hasSpeech = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
@@ -13,6 +15,11 @@
   let selectedVoiceId = null; // voice.name 또는 voiceURI 저장
   let voicesCache = [];
   let settingsPanel = null;
+  const SOUND_MIN = 0.1;
+  const SOUND_MAX = 10.0;
+
+  let rateValue = 1.0;
+  let toneValue = 1.0;
 
   function loadInitialState(){
     if (!hasSpeech) {
@@ -32,6 +39,20 @@
       const v = window.localStorage && window.localStorage.getItem(VOICE_KEY);
       if (v) selectedVoiceId = v;
     } catch(e){}
+
+    try {
+      const rawRate = window.localStorage && window.localStorage.getItem(RATE_KEY);
+      if (rawRate !== null && rawRate !== undefined && rawRate !== "") {
+        rateValue = clampRange(parseFloat(rawRate), SOUND_MIN, SOUND_MAX, 1.0);
+      }
+    } catch(e){}
+
+    try {
+      const rawTone = window.localStorage && window.localStorage.getItem(TONE_KEY);
+      if (rawTone !== null && rawTone !== undefined && rawTone !== "") {
+        toneValue = clampRange(parseFloat(rawTone), SOUND_MIN, SOUND_MAX, 1.0);
+      }
+    } catch(e){}
   }
 
   function saveState(){
@@ -50,6 +71,65 @@
         window.localStorage.removeItem(VOICE_KEY);
       }
     } catch(e){}
+  }
+
+  function clampRange(value, min, max, fallback){
+    const num = parseFloat(value);
+    if (!isFinite(num) || isNaN(num)) return fallback;
+    if (num < min) return min;
+    if (num > max) return max;
+    return num;
+  }
+
+  function normalizeDisplayValue(value){
+    return clampRange(value, SOUND_MIN, SOUND_MAX, 1.0).toFixed(1);
+  }
+
+  function saveSoundSettings(){
+    try {
+      if (!window.localStorage) return;
+      window.localStorage.setItem(RATE_KEY, normalizeDisplayValue(rateValue));
+      window.localStorage.setItem(TONE_KEY, normalizeDisplayValue(toneValue));
+    } catch(e){}
+  }
+
+  function mapToneToPitch(value){
+    const slider = clampRange(value, SOUND_MIN, SOUND_MAX, 1.0);
+    const ratio = (slider - SOUND_MIN) / (SOUND_MAX - SOUND_MIN);
+    if (ratio <= 0.5) {
+      const lowRatio = ratio / 0.5;
+      return 0.05 + (lowRatio * 0.95);
+    }
+    const highRatio = (ratio - 0.5) / 0.5;
+    return 1.0 + Math.pow(highRatio, 0.72) * 1.0;
+  }
+
+  function mapToneRateFactor(value){
+    const slider = clampRange(value, SOUND_MIN, SOUND_MAX, 1.0);
+    if (slider <= 1.0) {
+      return 0.92 - ((1.0 - slider) * 0.08);
+    }
+    if (slider <= 2.0) {
+      return 1.0;
+    }
+    if (slider <= 5.0) {
+      return 1.0 + ((slider - 2.0) / 3.0) * 0.12;
+    }
+    return 1.12 + ((slider - 5.0) / 5.0) * 0.24;
+  }
+
+  function mapRateToUtteranceRate(value){
+    return clampRange(value, SOUND_MIN, SOUND_MAX, 1.0);
+  }
+
+  function getToneDescriptor(value){
+    const v = clampRange(value, SOUND_MIN, SOUND_MAX, 1.0);
+    if (v <= 0.6) return "매우 낮고 묵직한 톤";
+    if (v <= 1.3) return "낮은 톤";
+    if (v <= 2.4) return "기본에 가까운 톤";
+    if (v <= 4.2) return "높은 톤";
+    if (v <= 6.5) return "가볍고 얇은 톤";
+    return "아주 가볍고 얇은 톤";
   }
 
   // 현재 사용 가능한 음성 목록 새로고침
@@ -89,8 +169,8 @@
         utter.voice = voice;
       }
       utter.lang = (voice && voice.lang) || "ko-KR";
-      utter.rate = 1.0;
-      utter.pitch = 1.0;
+      utter.pitch = mapToneToPitch(toneValue);
+      utter.rate = clampRange(mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue), SOUND_MIN, SOUND_MAX, 1.0);
 
       // 이전 재생 중인 음성 정리
       try { window.speechSynthesis.cancel(); } catch(e){}
@@ -199,6 +279,100 @@
     voiceBox.style.background = "rgba(20,20,40,0.9)";
     panel.appendChild(voiceBox);
 
+    function makeSliderBlock(options){
+      const wrap = document.createElement("div");
+      wrap.style.marginTop = "12px";
+
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.justifyContent = "space-between";
+      header.style.alignItems = "center";
+      header.style.gap = "8px";
+      header.style.marginBottom = "4px";
+
+      const title = document.createElement("div");
+      title.textContent = options.title;
+      title.style.fontSize = "12px";
+      header.appendChild(title);
+
+      const value = document.createElement("div");
+      value.style.fontSize = "12px";
+      value.style.opacity = "0.92";
+      header.appendChild(value);
+
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = String(SOUND_MIN);
+      input.max = String(SOUND_MAX);
+      input.step = "0.1";
+      input.value = normalizeDisplayValue(options.value);
+      if (options.role) input.setAttribute("data-role", options.role);
+      input.style.width = "100%";
+      input.style.cursor = "pointer";
+      wrap.appendChild(header);
+      wrap.appendChild(input);
+
+      const hint = document.createElement("div");
+      hint.style.fontSize = "11px";
+      hint.style.opacity = "0.75";
+      hint.style.marginTop = "3px";
+      wrap.appendChild(hint);
+
+      function render(current){
+        const safe = clampRange(current, SOUND_MIN, SOUND_MAX, options.fallback);
+        value.textContent = safe.toFixed(1);
+        if (typeof options.describe === "function") {
+          hint.textContent = options.describe(safe);
+        } else {
+          hint.textContent = options.hint || "";
+        }
+      }
+
+      input.addEventListener("input", function(){
+        const safe = clampRange(input.value, SOUND_MIN, SOUND_MAX, options.fallback);
+        options.onInput(safe);
+        render(safe);
+      });
+
+      render(options.value);
+
+      return { wrap: wrap, input: input, render: render };
+    }
+
+    const toneSlider = makeSliderBlock({
+      title: "목소리 톤",
+      role: "tone",
+      value: toneValue,
+      fallback: 1.0,
+      describe: function(v){
+        return getToneDescriptor(v);
+      },
+      onInput: function(v){
+        toneValue = v;
+        saveSoundSettings();
+      }
+    });
+    panel.appendChild(toneSlider.wrap);
+
+    const rateSlider = makeSliderBlock({
+      title: "읽는 빠르기",
+      role: "rate",
+      value: rateValue,
+      fallback: 1.0,
+      describe: function(v){
+        if (v < 0.8) return "천천히 읽어요";
+        if (v <= 1.6) return "기본 속도예요";
+        if (v <= 3.2) return "조금 빠르게 읽어요";
+        if (v <= 6.0) return "빠르게 읽어요";
+        return "아주 빠르게 읽어요";
+      },
+      onInput: function(v){
+        rateValue = v;
+        saveSoundSettings();
+      }
+    });
+    panel.appendChild(rateSlider.wrap);
+
     const footer = document.createElement("div");
     footer.style.display = "flex";
     footer.style.justifyContent = "space-between";
@@ -238,7 +412,7 @@
       if (!enabled) {
         setEnabled(true);
       }
-      const sample = "지금 선택된 목소리로 읽어 드릴게요.";
+      const sample = "지금 설정한 목소리 톤과 빠르기로 읽어 드릴게요. 높은 톤도, 낮은 톤도 확인해 보세요.";
       speak(sample);
     });
 
@@ -345,6 +519,11 @@
     const panel = ensureSettingsPanel();
     panel.style.display = "block";
     panel.classList.remove("hidden");
+
+    const toneInput = panel.querySelector('input[type="range"][data-role="tone"]');
+    const rateInput = panel.querySelector('input[type="range"][data-role="rate"]');
+    if (toneInput) toneInput.value = normalizeDisplayValue(toneValue);
+    if (rateInput) rateInput.value = normalizeDisplayValue(rateValue);
 
     refreshVoices();
     rebuildVoiceList();
