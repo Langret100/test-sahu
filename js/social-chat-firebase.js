@@ -651,6 +651,53 @@ function setModeSocial(enabled) {
     setModeSocial(!socialChatMode);
   }
 
+  function stripLeadingWakeWords(rawText) {
+    var raw = String(rawText || "").trim();
+    if (!raw) return "";
+
+    var names = [];
+    try {
+      if (window.currentCharacterName) names.push(String(window.currentCharacterName).trim());
+    } catch (e) {}
+    names = names.concat(["미나", "민아", "민하", "미라", "미나야", "민수", "민서", "민소", "민슈", "마이파이", "마이파", "얘", "야", "저기", "있잖아", "잠깐"]);
+    names = Array.from(new Set(names.filter(Boolean))).sort(function(a, b){ return b.length - a.length; });
+
+    var stripped = raw;
+    names.forEach(function(name){
+      var esc = String(name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      var re = new RegExp("^(?:" + esc + ")([야아아요요!,~ ]+)?", "i");
+      stripped = stripped.replace(re, "").trim();
+    });
+    return stripped;
+  }
+
+  function cleanPayloadCandidate(candidateText) {
+    var candidate = String(candidateText || "").trim().replace(/^['"“”‘’]+|['"“”‘’]+$/g, "");
+    candidate = stripLeadingWakeWords(candidate);
+    candidate = candidate.replace(/\s*(?:라고|이라고|라며|이라며)\s*$/i, "").trim();
+    return candidate;
+  }
+
+  function extractVoiceChatPayload(rawText) {
+    var raw = String(rawText || "").trim();
+    if (!raw) return "";
+
+    var stripped = stripLeadingWakeWords(raw);
+
+    var commandPatterns = [
+      /(.+?)\s*(?:라고|이라고|라고만|이라고만|라며|이라며)?\s*(?:적어줘|적어\s*줘|적어|써줘|써\s*줘|써|보내줘|보내\s*줘|보내|전송해줘|전송해\s*줘|전송해|말해줘|말해\s*줘|말해|전달해줘|전달해\s*줘|전달해|전해줘|전해\s*줘|전해|전달)$/i,
+      /(?:적어줘|적어\s*줘|적어|써줘|써\s*줘|써|보내줘|보내\s*줘|보내|전송해줘|전송해\s*줘|전송해|말해줘|말해\s*줘|말해|전달해줘|전달해\s*줘|전달해|전해줘|전해\s*줘|전해|전달)\s+(.+)$/i
+    ];
+    for (var i = 0; i < commandPatterns.length; i += 1) {
+      var m = stripped.match(commandPatterns[i]) || raw.match(commandPatterns[i]);
+      if (!m || !m[1]) continue;
+      var candidate = cleanPayloadCandidate(m[1]);
+      if (candidate) return candidate;
+    }
+
+    return stripped || raw;
+  }
+
   function patchHandleUserSubmit() {
     if (typeof window.handleUserSubmit !== "function") return;
     if (originalHandleUserSubmit) return;
@@ -667,7 +714,8 @@ function setModeSocial(enabled) {
       if (inputEl && typeof inputEl.value === "string") {
         text = inputEl.value;
       }
-      sendSocialMessage(text);
+      var finalText = extractVoiceChatPayload(text);
+      sendSocialMessage(finalText);
     };
   }
 

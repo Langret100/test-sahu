@@ -229,8 +229,10 @@ if (typeof window !== "undefined"
 // [옵션 기능] 출석 도장 모듈(첫 로그인 자동 도장) 연동 끝
 
 setStatus("로그인에 성공했어요!");
-      if (typeof showBubble === "function") {
-        showBubble((window.currentUser.nickname || username) + "님, 어서 와요!");
+      {
+        const line = (function(name){ const lines = [name + " 왔네! 기다리고 있었어.", name + " 왔구나! 오늘도 반가워.", name + " 어서 와. 편하게 놀다 가." ]; return lines[Math.floor(Math.random() * lines.length)]; })(window.currentUser.nickname || username);
+        if (typeof setEmotion === "function") setEmotion("인사", line);
+        else if (typeof showBubble === "function") showBubble(line);
       }
 
       updateLogoutVisibility();
@@ -289,8 +291,10 @@ setStatus("로그인에 성공했어요!");
       } catch (e) {}
 
       setStatus("회원가입이 완료되었어요! 자동으로 로그인했어요.");
-      if (typeof showBubble === "function") {
-        showBubble((window.currentUser.nickname || username) + "님, 반가워요!");
+      {
+        const line = (function(name){ const lines = [name + " 반가워! 이제 같이 놀자.", name + " 가입 끝났어! 이제 편하게 말 걸어줘.", name + " 왔네! 오늘부터 같이 잘 지내보자." ]; return lines[Math.floor(Math.random() * lines.length)]; })(window.currentUser.nickname || username);
+        if (typeof setEmotion === "function") setEmotion("기쁨", line);
+        else if (typeof showBubble === "function") showBubble(line);
       }
 
       updateLogoutVisibility();
@@ -317,8 +321,10 @@ setStatus("로그인에 성공했어요!");
     } catch (e) {}
     window.currentUser = null;
     setStatus("로그아웃 되었어요.");
-    if (typeof showBubble === "function") {
-      showBubble("다음에 또 와요!");
+    {
+      const line = "다음에 또 와. 기다리고 있을게!";
+      if (typeof setEmotion === "function") setEmotion("인사", line);
+      else if (typeof showBubble === "function") showBubble(line);
     }
     updateLogoutVisibility();
     updatePlusMenuLoginLabel();
@@ -372,8 +378,18 @@ setStatus("로그인에 성공했어요!");
           localStorage.setItem("ghostUser", JSON.stringify(window.currentUser));
         } catch (e) {}
         setStatus("게스트로 입장했어요. 나중에 회원가입하면 더 오래 기록을 남길 수 있어요.");
-        if (typeof showBubble === "function") {
-          showBubble(window.currentUser.nickname + "님, 가볍게 놀다 가요!");
+        {
+          var nick = window.currentUser.nickname;
+          var welcomes = [
+            nick + "아, 어서 와! 오늘도 반가워.",
+            nick + "아, 왔구나! 편하게 놀다 가.",
+            nick + "아, 반가워! 오늘 뭐부터 해볼까?",
+            nick + "아, 어서 와. 수다 떨고 가도 좋고, 쉬다 가도 좋아.",
+            nick + "아, 또 만났네! 편하게 말 걸어줘."
+          ];
+          var line = welcomes[Math.floor(Math.random() * welcomes.length)];
+          if (typeof setEmotion === "function") setEmotion("인사", line);
+          else if (typeof showBubble === "function") showBubble(line);
         }
         updateLogoutVisibility();
         updatePlusMenuLoginLabel();

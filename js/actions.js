@@ -23,7 +23,7 @@ function initActions() {
       if (delta > 0 && delta < 450) {
         if (typeof showBubble === "function") {
           try {
-            showBubble("잠깐만요! 한 번만 눌러도 수첩을 볼 수 있어요.");
+            showBubble("잠깐! 한 번만 눌러도 수첩 볼 수 있어.");
           } catch (e) {}
         }
         handleTouch();
@@ -45,21 +45,21 @@ function initActions() {
 
         // 수첩을 닫을 때는 기쁨 표정과 함께 2~4개의 멘트 중 하나를 무작위로 사용합니다.
         const closePhrases = [
-          "다 봤다면 수첩은 제가 다시 챙겨둘게요.",
-          "수첩은 여기까지! 필요하면 언제든 다시 열어 달라고 해주세요.",
-          "기록은 안전하게 보관해 둘게요. 이제 다시 이야기할까요?",
-          "다 봤으면 수첩은 잠시 제가 가지고 있을게요."
+          "다 봤으면 수첩은 내가 다시 챙겨둘게.",
+          "수첩은 여기까지! 필요하면 언제든 다시 열어달라고 해.",
+          "기록은 안전하게 보관해둘게. 이제 다시 이야기할까?",
+          "다 봤으면 수첩은 잠시 내가 가지고 있을게."
         ];
         const closePhrase =
           closePhrases[Math.floor(Math.random() * closePhrases.length)];
 
         if (typeof setEmotion === "function") {
           try {
-            setEmotion("기쁨", null, {});
-          } catch (e) {}
-        }
-
-        if (typeof showBubble === "function") {
+            setEmotion("기쁨", closePhrase, { linePool: closePhrases, source: "builtin" });
+          } catch (e) {
+            try { if (typeof showBubble === "function") showBubble(closePhrase); } catch (e2) {}
+          }
+        } else if (typeof showBubble === "function") {
           try {
             showBubble(closePhrase);
           } catch (e) {}
@@ -72,11 +72,11 @@ function initActions() {
       // 2) 기본적으로 '화면보기' 감정으로 화면을 바라보게 하며
       // 3) 낮은 확률로 '부끄러움' 감정과 함께 "메모장만 보세요?" 느낌의 멘트를 출력합니다.
       const openPhrases = [
-        "수첩 여기 있어요.",
-        "수첩 여기 보여드릴게요.",
-        "오늘 기록들을 한 번 같이 볼까요?",
-        "오늘 메모를 차근차근 정리해 볼까요?",
-        "수첩 펼쳐서 같이 확인해 볼게요."
+        "수첩 여기 있어.",
+        "수첩 여기 보여줄게.",
+        "오늘 기록들 한 번 같이 볼까?",
+        "오늘 메모를 차근차근 정리해볼까?",
+        "수첩 펼쳐서 같이 확인해볼게."
       ];
       const phrase =
         openPhrases[Math.floor(Math.random() * openPhrases.length)];
@@ -86,21 +86,22 @@ if (typeof setEmotion === "function") {
           try {
             setEmotion(
               "부끄러움",
-              "어… 메모장만 살짝 볼까요? 조금 부끄럽네요.",
+              "어… 메모장만 살짝 볼까? 조금 부끄럽네.",
               { shake: true }
             );
-          } catch (e) {}
+          } catch (e) {
+            try { if (typeof showBubble === "function") showBubble("어… 메모장만 살짝 볼까? 조금 부끄럽네."); } catch (e2) {}
+          }
         } else {
           try {
-            // 공손한 인사/안내 느낌을 섞어서 수첩을 안내
-            const politeEmotions = ["인사", "경청", "화면보기"];
-            const chosen = politeEmotions[Math.floor(Math.random() * politeEmotions.length)];
-            setEmotion(chosen, null, {});
-          } catch (e) {}
+            const guideEmotions = ["인사", "경청", "화면보기"];
+            const chosen = guideEmotions[Math.floor(Math.random() * guideEmotions.length)];
+            setEmotion(chosen, phrase, { linePool: openPhrases, source: "builtin" });
+          } catch (e) {
+            try { if (typeof showBubble === "function") showBubble(phrase); } catch (e2) {}
+          }
         }
-      }
-
-      if (typeof showBubble === "function") {
+      } else if (typeof showBubble === "function") {
         try {
           showBubble(phrase);
         } catch (e) {}
@@ -177,10 +178,11 @@ if (typeof setEmotion === "function") {
         }
       } else if (action === "teach") {
         if (typeof setEmotion === "function") {
-          setEmotion("경청","좋아요! 새로 배워볼게요.\n아래 창에 문장과 대사를 입력해주세요.");
+          setEmotion("경청","좋아! 새로 배워볼게.\n아래 창에 문장하고 대사를 입력해줘.", { linePool: ["좋아! 새로 배워볼게.\n아래 창에 문장하고 대사를 입력해줘.", "좋아, 새로 배워볼게.\n아래 칸에 문장하고 대사를 적어줘.", "알겠어. 새로 익혀볼게.\n아래 창에 문장하고 대사를 넣어줘."], source: "builtin" });
         }
         if (typeof openTeachModal === "function") {
           openTeachModal();
+          setTimeout(openTeachModal, 30);
         }
       } else if (action === "char") {
         // 캐릭터 전환 (미나 <-> 민수)
@@ -199,7 +201,7 @@ if (typeof setEmotion === "function") {
               ghostElLocal.classList.add("char-minsu");
             }
             if (typeof setEmotion === "function") {
-              setEmotion("기쁨", "이제 저는 민수예요! 잘 부탁해요.");
+              setEmotion("기쁨", "이제 난 민수야! 잘 부탁해.");
             }
           } else {
             if (typeof setCurrentCharacter === "function") {
@@ -214,7 +216,7 @@ if (typeof setEmotion === "function") {
               ghostElLocal.classList.remove("char-minsu");
             }
             if (typeof setEmotion === "function") {
-              setEmotion("기쁨", "다시 미나 모드로 돌아왔어요!");
+              setEmotion("기쁨", "다시 미나 모드로 돌아왔어!");
             }
           }
         }
@@ -246,7 +248,7 @@ if (typeof setEmotion === "function") {
         if (window.ttsVoice && typeof window.ttsVoice.openSettings === "function") {
           window.ttsVoice.openSettings();
         } else if (typeof showBubble === "function") {
-          showBubble("이 브라우저에서는 아직 음성 읽어주기를 쓸 수 없어요.");
+          showBubble("이 브라우저에서는 아직 음성 읽어주기를 쓸 수 없어.");
         }
       } else if (action === "barobaro") {
         if (window.AlwaysListen && typeof window.AlwaysListen.toggle === "function") {
@@ -255,11 +257,11 @@ if (typeof setEmotion === "function") {
           } catch (err) {
             console.error("AlwaysListen toggle error:", err);
             if (typeof showBubble === "function") {
-              showBubble("바로바로! 기능을 켜는 중 문제가 생겼어요.");
+              showBubble("바로바로! 기능을 켜는 중 문제가 생겼어.");
             }
           }
         } else if (typeof showBubble === "function") {
-          showBubble("바로바로! 기능이 아직 준비되지 않았어요.");
+          showBubble("바로바로! 기능이 아직 준비되지 않았어.");
         }
       }
 

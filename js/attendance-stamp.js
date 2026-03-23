@@ -216,7 +216,7 @@
     if (!user || !user.user_id) {
       if (typeof showBubble === "function") {
         try {
-          showBubble("먼저 로그인을 해 주세요.");
+          showBubble("먼저 로그인해줘.");
         } catch (e) {}
       }
       return;
@@ -225,7 +225,7 @@
     // 출석 도장 패널을 여는 동안 고스트가 멘트를 해서 대기 시간을 느끼지 않도록 함
     if (typeof showBubble === "function") {
       try {
-        showBubble("오늘 출석 도장을 확인해 볼게.");
+        showBubble("오늘 출석 도장을 확인해볼게.");
       } catch (e) {}
     }
 
@@ -350,7 +350,7 @@
     if (!user || !user.user_id) {
       if (typeof showBubble === "function") {
         try {
-          showBubble("먼저 로그인을 해 주세요.");
+          showBubble("먼저 로그인해줘.");
         } catch (e) {}
       }
       return;

@@ -56,7 +56,7 @@ function initNotebookMenu() {
       if (typeof openMenuGame4 === "function") {
         try { openMenuGame4(); } catch (e) {}
       } else if (typeof showBubble === "function") {
-        try { showBubble("수학 탐험대 게임이 아직 준비 중이에요."); } catch (e) {}
+        try { showBubble("수학 탐험대 게임은 아직 준비 중이야."); } catch (e) {}
       }
       // 게임을 열면서 수첩은 닫습니다.
       try { closeNotebookMenu(); } catch (e) {}
@@ -230,7 +230,7 @@ function initNotebookMenu() {
         openAttendanceStamp();
         } else if (typeof showBubble === "function") {
         try {
-        showBubble("출석 도장 기능은 아직 준비 중이에요.");
+        showBubble("출석 도장 기능은 아직 준비 중이야.");
         } catch (e) {}
         }
         // [옵션 기능] 출석 도장 모듈 연동 끝
@@ -248,7 +248,7 @@ function initNotebookMenu() {
         LettersLocal.openFromMenu();
         } else if (typeof showBubble === "function") {
         try {
-        showBubble("편지함 기능이 아직 준비 중이에요.");
+        showBubble("편지함 기능은 아직 준비 중이야.");
         } catch (e) {}
         }
         break;
@@ -263,7 +263,7 @@ function initNotebookMenu() {
         p.classList.add("open");
         } else if (typeof showBubble === "function") {
         try {
-        showBubble("게시판 기능이 아직 준비 중이에요.");
+        showBubble("게시판 기능은 아직 준비 중이야.");
         } catch (e) {}
         }
         }
@@ -273,7 +273,7 @@ function initNotebookMenu() {
         if (typeof openMenuGame1 === "function") {
         openMenuGame1();
         } else if (typeof showBubble === "function") {
-        try { showBubble("구구단 게임이 아직 준비 중이에요."); } catch(e){}
+        try { showBubble("구구단 게임은 아직 준비 중이야."); } catch(e){}
         }
         break;
 
@@ -281,7 +281,7 @@ function initNotebookMenu() {
         if (typeof openMenuGame2 === "function") {
         openMenuGame2();
         } else if (typeof showBubble === "function") {
-        try { showBubble("덧셈주사위 게임이 아직 준비 중이에요."); } catch(e){}
+        try { showBubble("덧셈주사위 게임은 아직 준비 중이야."); } catch(e){}
         }
         break;
 
@@ -289,7 +289,7 @@ function initNotebookMenu() {
         if (typeof openMenuGame3 === "function") {
         openMenuGame3();
         } else if (typeof showBubble === "function") {
-        try { showBubble("꿈틀도형 게임이 아직 준비 중이에요."); } catch(e){}
+        try { showBubble("꿈틀도형 게임은 아직 준비 중이야."); } catch(e){}
         }
         break;
 
@@ -301,7 +301,7 @@ function initNotebookMenu() {
         openQuestExplorer();
         } else if (typeof showBubble === "function") {
         try {
-        showBubble("오늘의 퀘스트 기능은 아직 준비 중이에요. 나중에 같이 채워 넣자!");
+        showBubble("오늘의 퀘스트 기능은 아직 준비 중이야. 나중에 같이 채워 넣자!");
         } catch (e) {}
         }
         break;
@@ -314,7 +314,7 @@ function initNotebookMenu() {
         openARCamera();
         } else if (typeof showBubble === "function") {
         try {
-        showBubble("AR 카메라 기능은 아직 준비 중이에요. 나중에 같이 만들어 볼까?");
+        showBubble("AR 카메라 기능은 아직 준비 중이야. 나중에 같이 만들어 볼까?");
         } catch (e) {}
         }
         break;
@@ -325,7 +325,7 @@ function initNotebookMenu() {
         openRankingPopup();
         } else if (typeof showBubble === "function") {
         try {
-        showBubble("게임 랭킹은 아직 준비 중이에요.");
+        showBubble("게임 랭킹은 아직 준비 중이야.");
         } catch (e) {}
         }
         break;
@@ -333,7 +333,7 @@ function initNotebookMenu() {
         default:
         if (typeof showBubble === "function") {
         try {
-        showBubble("아직 연결되지 않은 메뉴예요. 나중에 같이 채워 넣자!");
+        showBubble("아직 연결되지 않은 메뉴야. 나중에 같이 채워 넣자!");
         } catch (e) {}
         }
         break;

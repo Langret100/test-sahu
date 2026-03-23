@@ -12,7 +12,7 @@ function initTeachUI() {
 
       if (!trigger || !message) {
         if (typeof setTeachStatus === "function") {
-          setTeachStatus("트리거 문장과 대사는 꼭 입력해야 해요.");
+          setTeachStatus("트리거 문장하고 대사는 꼭 입력해줘.");
         }
         return;
       }
@@ -32,14 +32,23 @@ function initTeachUI() {
         saveLearnedReaction(trigger, message, motion);
       }
       if (typeof setTeachStatus === "function") {
-        setTeachStatus("배웠어요! 이제 해당 문장을 말하면 방금 알려준 대사로 반응할게요.");
+        setTeachStatus("배웠어! 이제 그 문장을 들으면 방금 알려준 대사로 반응할게.");
       }
 
       if (typeof closeTeachModal === "function") {
         closeTeachModal();
       }
       if (typeof setEmotion === "function") {
-        setEmotion("기쁨", `"${trigger}"라고 말하면 이렇게 대답할게요:\n${message}`);
+        const savedLines = [
+          `좋아, "${trigger}"라고 들으면 이렇게 답할게.
+${message}`,
+          `이제 "${trigger}"라고 말하면 이렇게 반응할게.
+${message}`,
+          `배워뒀어. "${trigger}"라는 말엔 이렇게 답할게.
+${message}`
+        ];
+        const line = savedLines[Math.floor(Math.random() * savedLines.length)];
+        setEmotion("기쁨", line, { allowDuringTeachOpen: true });
       }
     });
   }

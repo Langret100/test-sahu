@@ -1727,10 +1727,28 @@ function scheduleRoomRefresh(roomId) {
     }
   }
 
+  function focusMessageInput(selectEnd) {
+    if (!msgInput) return false;
+    try {
+      msgInput.focus();
+      if (selectEnd && typeof msgInput.setSelectionRange === "function") {
+        var len = (msgInput.value || "").length;
+        msgInput.setSelectionRange(len, len);
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function receiveParentCommand(data) {
     if (!data || typeof data !== "object") return false;
     if (data.type === "WG_MESSENGER_SEND_TEXT") {
       sendTextMessage(data.text || "");
+      return true;
+    }
+    if (data.type === "WG_MESSENGER_FOCUS_INPUT") {
+      focusMessageInput(true);
       return true;
     }
     return false;
@@ -1833,6 +1851,21 @@ function scheduleRoomRefresh(roomId) {
 
   function attachEvents() {
     if (!sendBtn || !msgInput) return;
+
+    function shouldStealFocusFromGlobalKey(ev) {
+      if (!ev || ev.defaultPrevented) return false;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+      var key = String(ev.key || "");
+      if (!(key === "Enter" || key === " " || key === "Spacebar")) return false;
+      var active = document.activeElement;
+      if (active === msgInput) return false;
+      if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT" || active.isContentEditable)) return false;
+      try {
+        if (emojiPanel && emojiPanel.classList && emojiPanel.classList.contains("open")) return false;
+      } catch (e0) {}
+      return true;
+    }
+
     sendBtn.addEventListener("click", function () {
       sendCurrentMessage();
     });
@@ -1843,6 +1876,11 @@ function scheduleRoomRefresh(roomId) {
       }
     });
 
+    document.addEventListener("keydown", function (ev) {
+      if (!shouldStealFocusFromGlobalKey(ev)) return;
+      ev.preventDefault();
+      focusMessageInput(true);
+    });
     closeBtn = document.getElementById("topCloseBtn");
     if (closeBtn) {
       closeBtn.addEventListener("click", function () {

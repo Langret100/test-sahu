@@ -94,8 +94,8 @@ if (chatPanel) chatPanel.classList.add("hidden");
     if (isMessenger) {
       if (typeof setEmotion === "function") {
         const lines = [
-          "저는 잠시 조용히 있을게요.",
-          "마이파 톡을 열게요."
+          "난 잠시 조용히 있을게.",
+          "마이파 톡을 열게."
         ];
         const pick = lines[Math.floor(Math.random() * lines.length)];
         try { setEmotion("미소", pick); } catch(e){}
@@ -122,6 +122,21 @@ if (chatPanel) chatPanel.classList.add("hidden");
     if (!clean) return false;
     try {
       frame.contentWindow.postMessage({ type: "WG_MESSENGER_SEND_TEXT", text: clean }, "*");
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function routeMessengerFocusKey(ev){
+    if (!isMessengerOpen() || !frame || !frame.contentWindow || !ev) return false;
+    var key = String(ev.key || "");
+    if (!(key === "Enter" || key === " " || key === "Spacebar")) return false;
+    var active = document.activeElement;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT" || active.isContentEditable)) return false;
+    try {
+      frame.contentWindow.postMessage({ type: "WG_MESSENGER_FOCUS_INPUT" }, "*");
+      ev.preventDefault();
       return true;
     } catch (e) {
       return false;
@@ -170,6 +185,8 @@ overlay.classList.add("hidden");
   if (closeBtn){
     closeBtn.addEventListener("click", exitGame);
   }
+
+  document.addEventListener("keydown", routeMessengerFocusKey, true);
 
   window.launchGame1 = function(){ enterGame("games/구구단게임.html","game1"); };
   window.launchGame2 = function(){ enterGame("games/덧셈주사위.html","game2"); };

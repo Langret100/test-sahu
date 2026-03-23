@@ -50,6 +50,15 @@
     return containsAny(text, ["열어줘", "열어 줘", "열어", "켜줘", "켜 줘", "켜", "들어가", "들어가줘", "접속해", "접속해줘", "접속해 줘", "접속", "틀어줘"]);
   }
 
+
+  function isDirectSiteOnlyCommand(text, site) {
+    if (!site) return false;
+    const norm = normalize(text);
+    return site.labels.some(function (label) {
+      return norm === normalize(label);
+    });
+  }
+
   function isCloseCommand(text) {
     return containsAny(text, ["닫아", "닫아줘", "닫아 줘", "꺼줘", "꺼 줘", "꺼", "끄기", "기본화면", "기본 화면", "처음화면", "처음 화면", "돌아가", "돌아가줘", "홈으로"]);
   }
@@ -157,7 +166,7 @@
     const text = stripWakePrefix(original);
     const site = detectSite(text);
 
-    if (site && isOpenCommand(text)) {
+    if (site && (isOpenCommand(text) || isDirectSiteOnlyCommand(text, site))) {
       return openSite(site, options);
     }
 

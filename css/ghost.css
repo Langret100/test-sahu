@@ -1033,12 +1033,14 @@ body {
 
 .notebook-coin-hud {
   position: absolute;
-  left: 64px;
+  right: 18px;
   bottom: 22px;
+  left: auto;
   margin-top: 0;
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   min-height: 20px;
   padding: 0;
@@ -1048,6 +1050,7 @@ body {
   font-weight: 800;
   font-size: 12px;
   line-height: 1;
+  text-align: right;
 }
 
 .notebook-coin-hud.is-login-needed {
@@ -1369,18 +1372,20 @@ body {
     margin-bottom: 10px;
   }
   .notebook-coin-hud {
-    margin-top: 0;
-    align-self: flex-end;
-    padding-top: 0;
-    border-top: none;
-    width: auto;
-    justify-content: flex-end;
-    position: absolute;
-    right: 30px;
-    top: 66px;
+    position: static;
+    right: auto;
+    top: auto;
     left: auto;
     bottom: auto;
+    margin-top: 4px;
+    margin-bottom: 12px;
+    align-self: flex-end;
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 0;
+    border-top: none;
     font-size: 12px;
+    text-align: right;
   }
   .notebook-coin-hud .coin-icon {
     width: 15px;

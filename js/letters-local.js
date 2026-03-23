@@ -9,7 +9,7 @@
       if (overlay) {
         const status = overlay.querySelector("#letterStatus");
         if (status) {
-          status.textContent = "먼저 로그인을 해 주세요.";
+          status.textContent = "먼저 로그인해줘.";
         }
       }
       if (typeof openLoginPanel === "function") {
@@ -273,10 +273,10 @@ async function sendLetter(overlay) {
       if (window.showBubble) {
         try {
           const phrases = [
-            "편지는 읽는 사람 마음을 따뜻하게 만들어 줘요.",
-            "전하고 싶은 말을 천천히 생각해 보면서 써 볼까요?",
-            "받는 사람 이름을 한 번 더 확인하는 것도 잊지 마세요!",
-            "너무 길지 않아도 괜찮아요. 진심이 가장 중요하니까요."
+            "편지는 읽는 사람 마음을 따뜻하게 만들어 줘.",
+            "전하고 싶은 말을 천천히 생각하면서 써보자.",
+            "받는 사람 이름은 한 번 더 확인해줘!",
+            "너무 길지 않아도 괜찮아. 진심이 제일 중요하니까."
           ];
           const msg = phrases[Math.floor(Math.random() * phrases.length)];
           window.showBubble(msg);

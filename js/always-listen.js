@@ -106,12 +106,22 @@
     return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  function getWakeNames(){
+    const names = [];
+    try {
+      const current = String(window.currentCharacterName || '').trim();
+      if (current) names.push(current);
+      if (current === '미나') names.push('민아','민하','미라','미나아');
+      if (current === '민수') names.push('민서','민소','민슈');
+    } catch(e){}
+    names.push('미나','민아','민하','미라','민수','민서','민소','민슈','마이파이','마이파','얘','야','저기','있잖아','잠깐');
+    return Array.from(new Set(names.filter(Boolean))).sort(function(a,b){ return b.length - a.length; });
+  }
+
   function stripWakeCommand(text){
     let raw = String(text || '').trim();
     if (!raw) return '';
-    const names = [];
-    try { if (window.currentCharacterName) names.push(String(window.currentCharacterName)); } catch(e){}
-    names.push('미나','민수','마이파이','얘','야','저기','있잖아');
+    const names = getWakeNames();
     names.forEach(function(name){
       if (!name) return;
       const re = new RegExp('^(?:' + escapeRegExp(name) + ')([야아아요요!,~ ]+)?', 'i');
@@ -124,10 +134,19 @@
     const raw = String(text || '').trim();
     if (!raw) return false;
     const norm = normalize(raw);
-    const names = [];
-    try { if (window.currentCharacterName) names.push(String(window.currentCharacterName)); } catch(e){}
-    names.push('미나','민수','마이파이','야','저기','있잖아','잠깐');
+    const names = getWakeNames();
     if (names.some(function(n){ return n && norm.includes(normalize(n)); })) return true;
+
+    const messengerOpen = !!(typeof window.isMessengerOpen === 'function' && window.isMessengerOpen());
+    if (messengerOpen) {
+      try {
+        if (typeof window.tryHandleMessengerVoiceCommand === 'function') {
+          if (window.tryHandleMessengerVoiceCommand(raw, { dryRun: true })) return true;
+        }
+      } catch(e) {}
+      if (/(적어줘|적어 줘|적어|써줘|써 줘|써|말해줘|말해 줘|말해|보내줘|보내 줘|보내|전송해줘|전송해 줘|전송해|전달해줘|전달해 줘|전달해|전달|전해줘|전해 줘|전해|닫아|닫아줘|나가|종료)[.!?~…]*$/.test(raw)) return true;
+    }
+
     if (/[?？]$/.test(raw)) return true;
     if (/(열어줘|열어 줘|켜줘|켜 줘|들어가|접속해|닫아|닫아줘|기본화면|기본 화면|도와줘|봐줘|알려줘|해줘)$/.test(raw)) return true;
     if (/(뭐해|뭐 하|어디 있|들리|말해봐|대답해|답해)/.test(raw)) return true;
@@ -181,6 +200,7 @@
       lastHandledAt = now;
 
       const wakeCommandText = stripWakeCommand(text) || text;
+      const messengerOpen = !!(typeof window.isMessengerOpen === 'function' && window.isMessengerOpen());
 
       if (window.WebLauncher && typeof window.WebLauncher.handleCommand === 'function') {
         try {

@@ -87,13 +87,13 @@
     handleRequest: function(rawText) {
       const result = buildFortuneText();
       if (typeof setEmotion === "function") {
-        try { setEmotion(result.emotion, null, { shake: false }); } catch (e) {}
+        try {
+          setEmotion(result.emotion, result.text, { shake: false });
+          return;
+        } catch (e) {}
       }
       if (typeof showBubble === "function") {
         showBubble(result.text);
-      }
-      if (typeof logMessage === "function") {
-        logMessage("ghost", result.text);
       }
     }
   };
