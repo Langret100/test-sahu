@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주사위 합 맞추기 게임</title>
+    
+    <style>
+        /* CSS 영역 (화면 꽉 채움으로 수정) */
+        
+        /* 1. HTML, BODY를 뷰포트 전체 크기로 설정 */
+        html, body {
+            width: 100%;
+            height: 100%; /* 뷰포트 높이 100% */
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 전체 스크롤 방지 */
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            /* 2. 게임 컨테이너를 부모(body) 크기에 맞게 꽉 채움 */
+            width: 100%;
+            height: 100%; 
+            /* PC에서도 너무 커지는 것을 방지하거나, 패딩을 조정하여 중앙 집중식으로 유지하려면 아래 스타일을 사용합니다. */
+            /* max-width: 700px; max-height: 900px; */ 
+            /* 위 2줄 대신 아래처럼 설정하여 꽉 채움 */
+
+            background-color: #fff;
+            
+            /* 3. 모바일/PC 반응형 패딩 (가로/세로 비율에 따라 조절) */
+            padding: 5% 5%; /* 5%의 상하좌우 여백 */
+            box-sizing: border-box; /* 패딩이 전체 크기에 포함되도록 */
+
+            border-radius: 0; /* 화면 꽉 채우므로 모서리 둥글기 제거 */
+            box-shadow: none; /* 화면 꽉 채우므로 그림자 제거 */
+            text-align: center;
+            position: relative;
+            
+            /* 컨텐츠가 넘칠 경우 내부에서 스크롤 허용 */
+            overflow-y: auto; 
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 15px; /* 모바일에서 공간 확보 */
+            font-size: 1.8em;
+        }
+
+        /* -------------------- 인트로 및 게임 오버 화면 공통 스타일 -------------------- */
+        .overlay-screen {
+            position: fixed; /* 뷰포트 기준 전체 화면 덮기 */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.98); /* 배경 불투명도 약간 높임 */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 0.5s ease-out;
+            padding: 5%;
+            box-sizing: border-box;
+            border-radius: 0;
+        }
+
+        .overlay-screen h2 {
+            font-size: 3em; /* 폰트 크기 조정 */
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        
+        .overlay-screen p {
+            font-size: 1.2em; /* 폰트 크기 조정 */
+            color: #555;
+            margin: 15px 0 40px 0;
+            line-height: 1.6;
+        }
+
+        .action-button {
+            padding: 18px 35px; /* 버튼 크기 키움 */
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 22px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .action-button:hover {
+            background-color: #27ae60;
+        }
+        
+        /* 게임 오버 메시지 스타일 */
+        #gameover-message {
+            font-size: 1.8em;
+            color: #e74c3c;
+            margin: 20px 0;
+        }
+
+        #final-score {
+            font-size: 3em;
+            font-weight: bold;
+            color: #f39c12;
+            margin-bottom: 30px;
+        }
+        /* -------------------------------------------------------- */
+
+
+        #game-content {
+            opacity: 0; 
+            transition: opacity 0.5s ease-in;
+            /* 내부 컨텐츠의 위치를 조정하기 위한 설정 */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* 상단부터 채우도록 */
+        }
+
+        /* 나머지 게임 요소 스타일 조정 */
+        #dice-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 10px 0 20px 0;
+            min-height: 100px; 
+            align-items: center;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
+            /* 꽉 찬 화면에서 주사위 컨테이너의 크기 조정을 위한 최대 너비 설정 */
+            max-width: 100%; 
+            padding-bottom: 20px;
+        }
+
+        .dice-face {
+            width: 60px; /* 주사위 크기 약간 축소 (반응형 대비) */
+            height: 60px;
+            border: 2px solid #333;
+            border-radius: 6px;
+            box-shadow: 0 3px #ccc;
+            /* 나머지 속성 유지 */
+            background-color: #ffffff;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.1s ease-out;
+            position: absolute;
+            opacity: 0;
+        }
+        
+        @keyframes fallAndRoll {
+            /* (기존 fallAndRoll 애니메이션 유지) */
+            0% { transform: translateY(-200px) rotateZ(0deg) scale(0.8); opacity: 0; }
+            30% { transform: translateY(-50px) rotateZ(180deg) scale(1.1); opacity: 1; }
+            70% { transform: translateY(20px) rotateZ(360deg) scale(0.9); opacity: 1; }
+            100% { transform: translateY(0) rotateZ(720deg) scale(1); opacity: 1; }
+        }
+        .dice-fall {
+            animation: fallAndRoll 0.8s ease-out forwards;
+        }
+
+
+        #options-container {
+            display: flex; justify-content: center; gap: 5%; margin: 15px 0;
+            width: 100%; /* 옵션 컨테이너를 넓게 사용 */
+            max-width: 500px;
+        }
+        .option-button {
+            padding: 15px 10px; /* 버튼 패딩 조정 */
+            background-color: #f39c12; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-size: 1.1em; /* 폰트 크기 조정 */
+            font-weight: bold; 
+            transition: background-color 0.3s; 
+            flex-grow: 1; /* 가로 공간 채우기 */
+            width: auto; /* width: 80px 제거 */
+            min-width: 60px;
+        }
+        .option-button:hover:not(:disabled) { background-color: #e67e22; }
+        .option-button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        
+        #round-info { font-size: 1.1em; margin-bottom: 5px; }
+        #timer { font-size: 1.6em; color: #e74c3c; font-weight: bold; margin: 10px 0; }
+        #question { margin-top: 10px; font-size: 1.2em; font-weight: bold; }
+        #message { font-size: 1.3em; min-height: 40px; margin-bottom: 15px; font-weight: bold; }
+        #score-board { 
+            margin-top: 20px; 
+            padding: 10px; 
+            border: 1px dashed #95a5a6; 
+            border-radius: 5px; 
+            width: 90%; 
+            max-width: 400px;
+        }
+        #score-board h2 { font-size: 1.5em; margin: 5px 0; }
+        #score-board p { font-size: 1em; margin: 5px 0; }
+        
+        
+        /* 주사위 눈금 SVG Data URI: (기존 코드 유지) */
+        .d1 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23000000'/%3E%3C/svg%3E"); }
+        .d2 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='25' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23000000'/%3E%3C/svg%3E"); }
+        .d3 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='25' cy='75' r='12' fill='%23000000'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='25' r='12' fill='%23000000'/%3E%3C/svg%3E"); }
+        .d4 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='25' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='25' cy='75' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23000000'/%3E%3C/svg%3E"); }
+        .d5 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='25' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='50' cy='50' r='12' fill='%23000000'/%3E%3Ccircle cx='25' cy='75' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23000000'/%3E%3C/svg%3E"); }
+        .d6 { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23ffffff' rx='10'/%3E%3Ccircle cx='25' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='25' r='12' fill='%23000000'/%3E%3Ccircle cx='25' cy='50' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='50' r='12' fill='%23000000'/%3E%3Ccircle cx='25' cy='75' r='12' fill='%23000000'/%3E%3Ccircle cx='75' cy='75' r='12' fill='%23000000'/%3E%3C/svg%3E"); }
+    </style>
+    <script src="../js/game-ghost.js"></script>
+
+</head>
+<body>
+    <div id="game-container">
+        
+        <div id="intro-screen" class="overlay-screen">
+            <h2>🎲 주사위 합 맞추기 마스터 🎲</h2>
+            <p>
+                주사위 눈금의 합을 맞히는 객관식 게임입니다.<br>
+                매 라운드 주사위가 굴러 떨어지며 눈금이 결정됩니다.<br>
+                **3라운드**마다 주사위 개수가 하나씩 늘어나 난이도가 상승합니다.<br>
+                제한시간 **6초** 안에 정답을 선택하세요!
+            </p>
+            <button id="intro-button" class="action-button" onclick="startGame(true)">게임 시작</button>
+        </div>
+        <div id="game-over-screen" class="overlay-screen" style="display: none;">
+            <h2>🚨 게임 오버 🚨</h2>
+            <p id="gameover-message"></p>
+            <p>최종 점수:</p>
+            <div id="final-score">0</div>
+            <button id="restart-button" class="action-button" onclick="startGame(true)">다시 시작</button>
+        </div>
+        <div id="game-content">
+            <h1>🎲 주사위 합 맞추기 🎲</h1>
+            <p id="round-info">현재 라운드: 0 | 주사위 개수: 2</p>
+            
+            <div id="dice-container">
+                </div>
+
+            <p id="timer">남은 시간: 6초</p>
+            
+            <p id="question">주사위 눈금의 합은?</p>
+            <div id="options-container">
+                </div>
+            
+            <p id="message"></p>
+            
+            <div id="score-board">
+                <h2>점수: <span id="score">0</span></h2>
+                <p>정답: <span id="correct-count">0</span> / 오답: <span id="wrong-count">0</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/game-ranking-report.js"></script>
+<script>
+        // JavaScript 영역은 기존과 동일하게 유지됩니다.
+        let currentRound = 0;
+        let diceCount = 2; 
+        let correctSum = 0;
+        let score = 0;
+        let correctCount = 0;
+        let wrongCount = 0;
+        const TIME_LIMIT = 6;
+        let timeLeft = TIME_LIMIT;
+        let timerInterval;
+        let gameActive = false;
+
+        // DOM 요소
+        const introScreen = document.getElementById('intro-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameContent = document.getElementById('game-content');
+        const roundInfo = document.getElementById('round-info');
+        const diceContainer = document.getElementById('dice-container');
+        const optionsContainer = document.getElementById('options-container');
+        const timerDisplay = document.getElementById('timer');
+        const messageDisplay = document.getElementById('message');
+        const scoreDisplay = document.getElementById('score');
+        const correctCountDisplay = document.getElementById('correct-count');
+        const wrongCountDisplay = document.getElementById('wrong-count');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const gameoverMessageDisplay = document.getElementById('gameover-message');
+
+
+        /** 랜덤 주사위 눈금 굴리기 (1~6) */
+        function rollDice() {
+            return Math.floor(Math.random() * 6) + 1;
+        }
+
+        /** 주사위 눈금 이미지 클래스를 반환합니다. */
+        function getDiceClass(value) {
+            return `d${value}`;
+        }
+
+        /**
+         * 게임 시작/재시작을 처리합니다.
+         * @param {boolean} isNewGame - 새 게임인지 여부
+         */
+        function startGame(isNewGame) {
+            // [옵션] 게임용 고스트: 게임 시작 반응 (game-ghost.js 삭제 시 이 블럭도 함께 삭제 가능)
+            if (window.gameGhostUI && typeof window.gameGhostUI.react === "function") {
+                try { window.gameGhostUI.react("start"); } catch(e) {}
+            }
+            // 오버레이 화면 숨기기
+            introScreen.style.opacity = '0';
+            gameOverScreen.style.opacity = '0';
+            
+            setTimeout(() => {
+                introScreen.style.display = 'none';
+                gameOverScreen.style.display = 'none';
+                gameContent.style.opacity = '1';
+                
+                if (isNewGame) {
+                    // 새 게임 시작 시 변수 초기화
+                    currentRound = 0; 
+                    score = 0;
+                    correctCount = 0;
+                    wrongCount = 0;
+                    updateScoreBoard();
+                    nextRound();
+                }
+            }, 500);
+        }
+        
+        /** 게임 오버를 처리하고 화면을 표시합니다. */
+        function endGame(reason) {
+            // ✅ 게임 랭킹 연동: 덧셈주사위 점수 전송 (부모 창으로 메시지 전송)
+            try {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                  type: "GAME_SCORE",
+                  gameName: "덧셈주사위",
+                  score: score
+                }, "*");
+              }
+            } catch(e) {}
+
+            // [옵션] 게임용 고스트: 게임 오버/실패 반응
+            if (window.gameGhostUI && typeof window.gameGhostUI.react === "function") {
+                try { window.gameGhostUI.react("gameover"); } catch(e) {}
+            }
+            clearInterval(timerInterval);
+            gameActive = false;
+            disableOptions(true);
+            
+            // 게임 컨텐츠 숨기기
+            gameContent.style.opacity = '0';
+            
+            // 게임 오버 화면 표시
+            finalScoreDisplay.textContent = score;
+            gameoverMessageDisplay.textContent = reason;
+            gameOverScreen.style.display = 'flex';
+            
+            setTimeout(() => {
+                gameOverScreen.style.opacity = '1';
+            }, 10);
+        }
+
+
+        /** 다음 라운드를 준비하고 시작합니다. */
+        function nextRound() {
+            currentRound++;
+            
+            // 3라운드마다 주사위 개수 +1
+            diceCount = Math.floor((currentRound - 1) / 3) + 2; 
+            
+            roundInfo.textContent = `현재 라운드: ${currentRound} | 주사위 개수: ${diceCount}`;
+            
+            startRound();
+        }
+
+        /** 주사위를 굴리고 화면에 표시하며 정답을 계산하고 보기를 설정합니다. */
+        function startRound() {
+            if (gameActive) return;
+
+            correctSum = 0;
+            messageDisplay.textContent = '';
+            gameActive = true;
+            disableOptions(true); 
+
+            diceContainer.innerHTML = '';
+
+            const diceValues = [];
+            for (let i = 0; i < diceCount; i++) {
+                const value = rollDice();
+                diceValues.push(value);
+                correctSum += value;
+            }
+
+            // 1. 주사위 떨어지는 연출 (기존 로직 유지)
+            diceValues.forEach((value, index) => {
+                const diceElement = document.createElement('div');
+                diceElement.className = `dice-face ${getDiceClass(value)}`;
+                
+                                // 주사위 배치를 화면 크기에 맞게 조정
+                const containerWidth = diceContainer.offsetWidth;
+                const DICE_SIZE_WITH_GAP = 75; // 주사위 크기 + 간격
+                const ROW_MAX = 4;            // 한 줄에 최대 4개 배치
+
+                let startX, topY;
+
+                if (diceCount <= ROW_MAX) {
+                    // ROW_MAX(최대 4개) 이하일 때는 한 줄에 나란히 중앙 정렬
+                    const totalDiceWidth = diceCount * 60 + (diceCount - 1) * 15;
+                    startX = (containerWidth - totalDiceWidth) / 2 + (index * DICE_SIZE_WITH_GAP);
+                    topY = 0;
+                } else {
+                    // ROW_MAX+1개(예: 5개) 이상일 때는 최대 4개씩 여러 줄 배치 (예: 5개면 4/1)
+                    const col = index % ROW_MAX;
+                    const row = Math.floor(index / ROW_MAX);
+                    const totalRowWidth = ROW_MAX * 60 + (ROW_MAX - 1) * 15;
+                    const baseX = (containerWidth - totalRowWidth) / 2;
+                    startX = baseX + col * DICE_SIZE_WITH_GAP;
+                    topY = row * 80; // 줄 간 세로 간격
+                }
+
+                diceElement.style.left = `${startX}px`;
+                diceElement.style.top = `${topY}px`; 
+                diceElement.style.animationDelay = `${index * 0.1}s`; 
+
+                diceContainer.appendChild(diceElement);
+
+                setTimeout(() => {
+                    diceElement.classList.add('dice-fall');
+                }, 50 + index * 100);
+            });
+
+            // 모든 주사위 애니메이션이 끝난 후 다음 단계 진행
+            const totalAnimationTime = (diceCount - 1) * 0.1 + 0.8 + 0.2; 
+            
+            setTimeout(() => {
+                setupOptions();
+                disableOptions(false); 
+                startTimer();
+
+            }, totalAnimationTime * 1000); 
+        }
+
+        /** 5개의 보기 버튼을 설정합니다. */
+        function setupOptions() {
+            optionsContainer.innerHTML = '';
+            
+            const options = generateOptions(correctSum, diceCount);
+            
+            options.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-button';
+                button.textContent = option;
+                button.onclick = () => checkAnswer(option);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        /** 정답과 4개의 오답을 포함한 5개의 보기를 생성합니다. (기존 로직 유지) */
+        function generateOptions(correctAnswer, count) {
+            const minSum = count * 1;
+            const maxSum = count * 6;
+            const options = new Set();
+            options.add(correctAnswer);
+            // ... (생략된 로직) ...
+            while (options.size < 5) {
+                let randomOffset = Math.floor(Math.random() * 5) + 1; 
+                if (Math.random() < 0.5) randomOffset *= -1; 
+
+                let newOption = correctAnswer + randomOffset;
+                
+                if (newOption < minSum) newOption = minSum;
+                if (newOption > maxSum) newOption = maxSum;
+                
+                if (newOption !== correctAnswer) {
+                     options.add(newOption);
+                }
+            }
+            let optionArray = Array.from(options);
+            for (let i = optionArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [optionArray[i], optionArray[j]] = [optionArray[j], optionArray[i]];
+            }
+            return optionArray;
+        }
+
+        /** 보기 버튼의 활성화/비활성화를 제어합니다. */
+        function disableOptions(disabled) {
+            const buttons = optionsContainer.querySelectorAll('.option-button');
+            buttons.forEach(button => {
+                button.disabled = disabled;
+                button.style.opacity = disabled ? 0.5 : 1.0;
+            });
+        }
+
+        /** 제한시간 타이머를 시작합니다. */
+        function startTimer() {
+            timeLeft = TIME_LIMIT;
+            timerDisplay.textContent = `남은 시간: ${timeLeft}초`;
+            clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = `남은 시간: ${timeLeft}초`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        /** 시간 초과 시 처리 로직입니다. */
+        function handleTimeout() {
+            if (!gameActive) return; 
+            endGame("시간 초과로 인해 게임이 종료되었습니다.");
+        }
+
+        /** 사용자 선택 정답을 확인합니다. */
+        function checkAnswer(selectedAnswer) {
+            if (!gameActive) return;
+
+            clearInterval(timerInterval);
+            gameActive = false;
+            disableOptions(true); 
+
+            const answer = parseInt(selectedAnswer, 10);
+            const buttons = optionsContainer.querySelectorAll('.option-button');
+
+            buttons.forEach(button => {
+                const buttonValue = parseInt(button.textContent, 10);
+                if (buttonValue === correctSum) {
+                    button.style.backgroundColor = '#2ecc71';
+                } else if (buttonValue === answer && answer !== correctSum) {
+                    button.style.backgroundColor = '#e74c3c';
+                }
+            });
+
+            if (answer === correctSum) {
+                // [옵션] 게임용 고스트: 정답 맞췄을 때 기쁨 표현
+                if (window.gameGhostUI && typeof window.gameGhostUI.react === "function") {
+                    try { window.gameGhostUI.react("correct"); } catch(e) {}
+                }
+                messageDisplay.textContent = "✅ 정답입니다! 다음으로 넘어갑니다.";
+                score += 10;
+                correctCount++;
+                updateScoreBoard();
+                setTimeout(nextRound, 2000);
+            } else {
+                messageDisplay.textContent = `❌ 오답입니다. 정답은 ${correctSum}이었습니다.`;
+                wrongCount++;
+                updateScoreBoard();
+                
+                // 오답 시 게임 오버
+                setTimeout(() => {
+                    endGame("정답을 맞히지 못하여 게임이 종료되었습니다.");
+                }, 1500);
+            }
+        }
+
+        /** 점수판을 업데이트합니다. */
+        function updateScoreBoard() {
+            scoreDisplay.textContent = score;
+            correctCountDisplay.textContent = correctCount;
+            wrongCountDisplay.textContent = wrongCount;
+        }
+        
+        // 페이지 로드 시 인트로 화면만 보이도록 설정
+        window.onload = function() {
+             gameContent.style.opacity = '0';
+             introScreen.style.display = 'flex';
+        };
+    </script>
+
+
+
+</body>
+</html>
