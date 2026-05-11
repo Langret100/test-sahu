@@ -9,9 +9,10 @@
   if (window.SignalBus) return;
 
   var _db = null;
-  var _listeners = {};   // roomId -> { ref, handler }
-  var _myTsMap = {};     // roomId -> 내가 마지막 보낸 ts
-  var _seenTsMap = {};   // roomId -> 내가 마지막 확인한 ts
+  var _listeners = {};      // roomId -> { ref, handler }
+  var _myTsMap = {};        // roomId -> 내가 마지막 보낸 ts
+  var _seenTsMap = {};      // roomId -> 내가 마지막 확인한 ts
+  var _subscribeStartTs = {}; // roomId -> 구독 최초 등록 시각 (Firebase replay 차단용)
   var _attachedHandlers = []; // { getMyId, onNotify, onSignal }
 
   function setDb(db) { _db = db; }
@@ -80,13 +81,23 @@
     // 구독 시작 시 오래된 신호 정리 (앱 초기화 1회)
     _pruneSignals(safe);
 
-    var since = Date.now() - 5000; // 최근 5초 내 신호만
+    var since = Date.now(); // 구독 시작 이후 신호만 (과거 메시지 알림 오탐 방지)
+    // 방별로 구독 시작 시각 기록 — Firebase reconnect 시 replay 차단에 사용
+    _subscribeStartTs[roomId] = since;
+
     var ref = db.ref('signals/' + safe).orderByChild('ts').startAt(since);
 
     var handler = ref.on('child_added', function (snap) {
       try {
         var val = snap.val();
         if (!val || !val.ts) return;
+
+        // ── Firebase reconnect replay 차단 ──────────────────────────────
+        // Firebase는 연결이 끊겼다 복구될 때 기존 리스너에 밀린 이벤트를 replay한다.
+        // 이때 val.ts 는 수 분~수 시간 전 값일 수 있다.
+        // 구독 최초 등록 시각(since) 이전 ts는 무조건 드롭한다.
+        var _startTs = _subscribeStartTs[roomId] || since;
+        if (val.ts < _startTs) return;
 
         // 각 핸들러에 알림
         _attachedHandlers.forEach(function (h) {

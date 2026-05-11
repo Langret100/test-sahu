@@ -64,6 +64,27 @@ function _saveBadgeCount(n) {
   } catch(e) {}
 }
 
+/* notify_mode를 IndexedDB에서 읽기 — SW는 localStorage 접근 불가 */
+function _loadNotifyMode() {
+  return new Promise(function(resolve) {
+    try {
+      var req = indexedDB.open('mypai_sw', 1);
+      req.onupgradeneeded = function(e) { e.target.result.createObjectStore('kv'); };
+      req.onsuccess = function(e) {
+        var db = e.target.result;
+        var tx = db.transaction('kv', 'readonly');
+        var get = tx.objectStore('kv').get('notifyMode');
+        get.onsuccess = function() {
+          var v = get.result;
+          resolve((v === 'mute' || v === 'vibrate' || v === 'sound') ? v : 'sound');
+        };
+        get.onerror = function() { resolve('sound'); };
+      };
+      req.onerror = function() { resolve('sound'); };
+    } catch(e) { resolve('sound'); }
+  });
+}
+
 var CACHE_NAME = "mypai-v8";
 var CACHE_URLS = [
   "./",
@@ -160,10 +181,15 @@ self.addEventListener("push", function (e) {
   var appUrl  = scope + "index.html";
 
   var notifyMode = (data.data && data.data.notify_mode) || "sound";
-  var isMute     = notifyMode === "mute";
 
   e.waitUntil(
-    _loadBadgeCount().then(function(savedCount) {
+    Promise.all([_loadBadgeCount(), _loadNotifyMode()]).then(function(results) {
+      var savedCount  = results[0];
+      var localMode   = results[1]; // 내 기기 IndexedDB 설정 (최우선)
+      // Apps Script가 보낸 notify_mode보다 내 기기 설정이 우선
+      notifyMode = localMode;
+      var isMute = notifyMode === "mute";
+
       _badgeCount = savedCount + 1;
       _saveBadgeCount(_badgeCount);
 
@@ -187,9 +213,10 @@ self.addEventListener("push", function (e) {
         var tasks = [];
 
         if (!isForeground) {
-          // 포그라운드에서는 showNotification, setAppBadge, postMessage 모두 생략
-          // → 배지/알림은 onNotify/child_added/visibilitychange에서 처리
-          tasks.push(self.registration.showNotification(title, opts));
+          // mute면 배지만 갱신, 알림 배너/소리 모두 생략
+          if (!isMute) {
+            tasks.push(self.registration.showNotification(title, opts));
+          }
 
           if (self.navigator && self.navigator.setAppBadge) {
             tasks.push(self.navigator.setAppBadge(_badgeCount).catch(function(){}));

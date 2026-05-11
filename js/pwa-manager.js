@@ -243,6 +243,48 @@
     } catch (e) {}
   }
 
+  /* ── 메신저를 열고 특정 방으로 이동하는 헬퍼 ──────────────────────────────
+   * 두 가지 경로에서 공통 사용:
+   *  1) 알림 클릭 → FCM_OPEN_ROOM (백그라운드→포그라운드)
+   *  2) 알림 클릭 → ?room= URL 파라미터 (앱 새로 열릴 때)
+   *
+   * iframe load 이벤트로 정확하게 로드 완료를 감지한 뒤 postMessage 전달.
+   * setInterval+setTimeout 고정 대기 방식보다 빠르고 안정적임.
+   */
+  function _openMessengerAndGoRoom(roomId) {
+    if (!roomId) return;
+    var gf = document.getElementById("gameFrame");
+    if (!gf) return;
+
+    var isOpen = gf.src && gf.src.indexOf("social-messenger") > -1 && gf.offsetParent !== null;
+
+    function _send() {
+      try {
+        var gf2 = document.getElementById("gameFrame");
+        if (gf2 && gf2.contentWindow) {
+          gf2.contentWindow.postMessage({ type: "FCM_OPEN_ROOM", roomId: roomId }, "*");
+        }
+      } catch (e) {}
+    }
+
+    if (isOpen) {
+      // 메신저 이미 열려있음 → 바로 전달
+      _send();
+    } else {
+      // 메신저 새로 열기 → onload 완료 후 전달
+      if (typeof window.launchMessenger === "function") {
+        var gf3 = document.getElementById("gameFrame");
+        if (gf3) {
+          gf3.addEventListener("load", function _onLoad() {
+            gf3.removeEventListener("load", _onLoad);
+            _send();
+          });
+        }
+        window.launchMessenger();
+      }
+    }
+  }
+
   /* SW / relay 메시지 공통 처리 */
   function _handleSwMessage(d) {
     try {
@@ -255,15 +297,7 @@
         _applyBadge();
       }
       if (d.type === "FCM_OPEN_ROOM" && d.roomId) {
-        // ghost:open-room 이벤트는 수신자가 없음
-        // games/ iframe의 social-messenger.js가 FCM_OPEN_ROOM을 직접 처리하므로
-        // iframe을 찾아 postMessage로 전달
-        try {
-          var gameFrame = document.getElementById("gameFrame");
-          if (gameFrame && gameFrame.contentWindow) {
-            gameFrame.contentWindow.postMessage({ type: "FCM_OPEN_ROOM", roomId: d.roomId }, "*");
-          }
-        } catch (_eFrame) {}
+        try { _openMessengerAndGoRoom(d.roomId); } catch (_eFrame) {}
       }
     } catch (e) {}
   }
@@ -418,6 +452,27 @@
         _handleSwMessage(d);
       } catch (e) {}
     });
+
+    // ── 알림 클릭으로 앱이 새로 열렸을 때: ?room= 파라미터로 채팅방 자동 진입 ──
+    try {
+      var _urlRoom = new URLSearchParams(window.location.search).get("room");
+      if (_urlRoom && String(_urlRoom).trim()) {
+        _urlRoom = String(_urlRoom).trim();
+        // 로그인 여부와 launchMessenger 준비를 기다렸다가 실행 (최대 5초)
+        var _roomOpenTries = 0;
+        var _roomOpenTimer = setInterval(function () {
+          _roomOpenTries++;
+          var isReady = typeof window.launchMessenger === "function";
+          var isLoggedIn = !!(window.currentUser && window.currentUser.user_id) ||
+            !!(function () { try { var u = JSON.parse(localStorage.getItem("ghostUser") || "{}"); return u && u.user_id; } catch (e) { return false; } })();
+          if ((isReady && isLoggedIn) || _roomOpenTries > 25) {
+            clearInterval(_roomOpenTimer);
+            if (!isReady || !isLoggedIn) return;
+            _openMessengerAndGoRoom(_urlRoom);
+          }
+        }, 200);
+      }
+    } catch (_eUrlRoom) {}
   }
 
   window.PwaManager = {

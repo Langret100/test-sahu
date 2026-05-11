@@ -274,6 +274,15 @@ var NotifySetting = (function () {
 
   function setMode(m) {
     try { localStorage.setItem(MODE_KEY, m); } catch (e) {}
+    // SW는 localStorage 접근 불가 → IndexedDB에도 저장해서 백그라운드 알림 제어
+    try {
+      var req = indexedDB.open('mypai_sw', 1);
+      req.onupgradeneeded = function(e) { e.target.result.createObjectStore('kv'); };
+      req.onsuccess = function(e) {
+        var db = e.target.result;
+        db.transaction('kv', 'readwrite').objectStore('kv').put(m, 'notifyMode');
+      };
+    } catch (_idbE) {}
   }
 
   /* 하위 호환: 알림이 완전히 꺼진 상태(mute)가 아니면 "활성"으로 간주 */
@@ -2208,9 +2217,18 @@ attachEvents();
         var initialRoomId = "";
     var initialRoomName = "";
     try {
+      // 알림 클릭으로 앱이 새로 열린 경우: URL ?room= 파라미터 우선 적용
+      var _urlParams = new URLSearchParams(window.location.search ||
+        (window.parent !== window ? window.parent.location.search : ""));
+      var _roomFromUrl = _urlParams.get("room");
+      if (_roomFromUrl && String(_roomFromUrl).trim()) {
+        initialRoomId = String(_roomFromUrl).trim();
+      }
+    } catch (_eUrl) {}
+    try {
       var rid = localStorage.getItem("ghostActiveRoomId");
       var rname = localStorage.getItem("ghostActiveRoomName");
-      if (rid && String(rid).trim()) initialRoomId = String(rid).trim();
+      if (!initialRoomId && rid && String(rid).trim()) initialRoomId = String(rid).trim();
       if (rname && String(rname).trim()) initialRoomName = String(rname).trim();
     } catch (e1) {}
 
@@ -2295,6 +2313,7 @@ attachEvents();
         });
 
         var tokens = [];
+        var tokenModes = {}; // token → notify_mode 맵
         tokenSnap.forEach(function (child) {
           var v = child.val() || {};
           if (!v.token) return;
@@ -2314,6 +2333,9 @@ attachEvents();
           if (!isSubscribed) return;
 
           tokens.push(v.token);
+          // 수신자의 알림 설정 저장 (SW가 수신자별 무음/진동/소리 적용하도록)
+          tokenModes[v.token] = (v.notify_mode === "mute" || v.notify_mode === "vibrate" || v.notify_mode === "sound")
+            ? v.notify_mode : "sound";
         });
 
         if (tokens.length === 0) return;
@@ -2335,13 +2357,14 @@ attachEvents();
 
         // Apps Script에 FCM 푸시 발송 요청
         window.postToSheet({
-          mode:      "fcm_push",
-          room_id:   roomId || "global",
-          sender:    senderNick || "누군가",
-          body:      text ? (text.length > 50 ? text.slice(0, 50) + "…" : text) : "새 메시지",
-          tokens:    tokens.join(","),
-          char_name: _fcmCharName,  // 백그라운드 알림 title용
-          char_icon: _fcmCharIcon   // 백그라운드 알림 icon용
+          mode:        "fcm_push",
+          room_id:     roomId || "global",
+          sender:      senderNick || "누군가",
+          body:        text ? (text.length > 50 ? text.slice(0, 50) + "…" : text) : "새 메시지",
+          tokens:      tokens.join(","),
+          token_modes: JSON.stringify(tokenModes), // 수신자별 notify_mode (mute/vibrate/sound)
+          char_name:   _fcmCharName,  // 백그라운드 알림 title용
+          char_icon:   _fcmCharIcon   // 백그라운드 알림 icon용
         }).then(function(res) {
           if (res && typeof res.json === "function") {
             res.json().then(function(d) {

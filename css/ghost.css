@@ -565,7 +565,7 @@ body.is-game-mode #ghostContainer {
   
 .teach-modal {
   position: fixed;
-  top: 28%;
+  top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   max-width: 320px;
@@ -2259,6 +2259,9 @@ body {
   background: #fffaf2;
   padding: 30px;
   width: 460px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
   border-radius: 12px;
   z-index: 10000;
   box-shadow: 0 6px 20px rgba(0,0,0,0.15);
@@ -3403,8 +3406,16 @@ body.always-listen-center #bubbleWrapper .bubble::after {
 #notebook-menu-overlay,
 #boardPanel,
 #manualPanel,
-#teachModal,
-#bgSelectPanel,
-#boardWriteModal {
+#bgSelectPanel {
   transform: translate3d(var(--plx-x), var(--plx-y), 0);
+}
+
+/* teachModal은 중앙 정렬(translate -50%,-50%) + 패럴랙스 합산 */
+#teachModal {
+  transform: translate(calc(-50% + var(--plx-x)), calc(-50% + var(--plx-y)));
+}
+
+/* boardWriteModal은 inset:0 flex 오버레이 — 패럴랙스 불필요 */
+#boardWriteModal {
+  transform: none;
 }
