@@ -163,24 +163,41 @@
     if (!hasSpeech || !enabled) return;
     if (!text || typeof text !== "string") return;
     try {
-      const utter = new window.SpeechSynthesisUtterance(text);
-      const voice = pickVoiceForUtterance();
-      if (voice) {
-        utter.voice = voice;
-      }
-      utter.lang = (voice && voice.lang) || "ko-KR";
-      utter.pitch = mapToneToPitch(toneValue);
-      utter.rate = clampRange(mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue), SOUND_MIN, SOUND_MAX, 1.0);
-
       // 이전 재생 중인 음성 정리
-      // Chrome에서 cancel() 직후 speak() 시 첫 음절 끊김 방지 → 50ms 딜레이
       try { window.speechSynthesis.cancel(); } catch(e){}
+
+      // voices가 아직 로드 안 됐으면 voiceschanged 후 재시도
+      if (!voicesCache.length) refreshVoices();
+      if (!voicesCache.length) {
+        const _once = { done: false };
+        const _retry = function() {
+          if (_once.done) return;
+          _once.done = true;
+          refreshVoices();
+          speak(text);
+        };
+        try {
+          window.speechSynthesis.addEventListener("voiceschanged", _retry, { once: true });
+          setTimeout(function() { if (!_once.done) { _once.done = true; refreshVoices(); speak(text); } }, 1000);
+        } catch(e) {}
+        return;
+      }
+
       setTimeout(function() {
-        try { window.speechSynthesis.speak(utter); } catch(e2){}
-      }, 50);
-    } catch(e){
-      // 실패해도 UI에 영향은 없도록 무시
-    }
+        try {
+          const utter = new window.SpeechSynthesisUtterance(text);
+          const voice = pickVoiceForUtterance();
+          if (voice) utter.voice = voice;
+          utter.lang = (voice && voice.lang) || "ko-KR";
+          utter.pitch = mapToneToPitch(toneValue);
+          utter.rate = clampRange(mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue), SOUND_MIN, SOUND_MAX, 1.0);
+          // Chrome 버그: speechSynthesis가 paused 상태로 빠지면 speak()해도 앞부분이 씹힘
+          // speak() 직전 resume()으로 강제 재개 → 첫 음절 씹힘 방지
+          try { window.speechSynthesis.resume(); } catch(e) {}
+          window.speechSynthesis.speak(utter);
+        } catch(e2){}
+      }, 150);
+    } catch(e){}
   }
 
   function refreshLabel(){
