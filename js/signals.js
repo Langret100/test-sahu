@@ -9,11 +9,34 @@
   if (window.SignalBus) return;
 
   var _db = null;
-  var _listeners = {};      // roomId -> { ref, handler }
-  var _myTsMap = {};        // roomId -> 내가 마지막 보낸 ts
-  var _seenTsMap = {};      // roomId -> 내가 마지막 확인한 ts
-  var _subscribeStartTs = {}; // roomId -> 구독 최초 등록 시각 (Firebase replay 차단용)
-  var _attachedHandlers = []; // { getMyId, onNotify, onSignal }
+  var _listeners = {};        // roomId -> { ref, handler }
+  var _myTsMap = {};          // roomId -> 내가 마지막 보낸 ts
+  var _seenTsMap = {};        // roomId -> 내가 마지막 확인한 ts (localStorage 영속)
+  var _subscribeStartTs = {}; // roomId -> 구독 최초 등록 시각
+  var _attachedHandlers = []; // { getMyId, onNotify, onSignal, onMessage }
+
+  // ── seenTs 영속화 ─────────────────────────────────────────
+  // SW는 localStorage 못 읽으므로 signals.js에서만 관리
+  var _SEEN_TS_KEY = 'signalbus_seenTs_v1';
+
+  function _loadSeenTs() {
+    try {
+      var obj = JSON.parse(localStorage.getItem(_SEEN_TS_KEY) || '{}');
+      if (obj && typeof obj === 'object') {
+        Object.keys(obj).forEach(function(rid) {
+          _seenTsMap[rid] = Number(obj[rid]) || 0;
+        });
+      }
+    } catch(e) {}
+  }
+
+  function _saveSeenTs() {
+    try { localStorage.setItem(_SEEN_TS_KEY, JSON.stringify(_seenTsMap)); } catch(e) {}
+  }
+
+  _loadSeenTs();
+
+  // ─────────────────────────────────────────────────────────
 
   function setDb(db) { _db = db; }
 
@@ -35,39 +58,29 @@
     try {
       var safe = String(roomId).replace(/[.#$\[\]]/g, '_');
       var _p = Object.assign({}, payload);
-      if (!_p.ts) _p.ts = Date.now(); // ts가 이미 있으면 유지 (markMyTs와 일치 보장)
-      db.ref('signals/' + safe).push(_p)
-        .catch(function () {});
-      // 메시지 전송 시 이 방의 오래된 신호 정리 (10분 초과)
+      if (!_p.ts) _p.ts = Date.now();
+      db.ref('signals/' + safe).push(_p).catch(function () {});
       _pruneSignals(safe);
     } catch (e) {}
   }
 
-  /* 오래된 신호 정리 — 10분(600초) 초과 항목 삭제 */
-  var _pruneThrottle = {}; // roomId -> lastPruneTs
+  /* 오래된 신호 정리 — 10분 초과 항목 삭제 */
+  var _pruneThrottle = {};
   function _pruneSignals(safeRoomId) {
     var now = Date.now();
-    // 방당 최대 1분에 1번만 실행
     if (_pruneThrottle[safeRoomId] && now - _pruneThrottle[safeRoomId] < 60000) return;
     _pruneThrottle[safeRoomId] = now;
-
     var db = getDb();
     if (!db) return;
-    var cutoff = now - 10 * 60 * 1000; // 10분 전
+    var cutoff = now - 10 * 60 * 1000;
     try {
-      db.ref('signals/' + safeRoomId)
-        .orderByChild('ts')
-        .endAt(cutoff)
-        .once('value')
-        .then(function (snap) {
+      db.ref('signals/' + safeRoomId).orderByChild('ts').endAt(cutoff)
+        .once('value').then(function (snap) {
           if (!snap.exists()) return;
           var updates = {};
-          snap.forEach(function (child) {
-            updates[child.key] = null; // 삭제
-          });
+          snap.forEach(function (child) { updates[child.key] = null; });
           db.ref('signals/' + safeRoomId).update(updates).catch(function () {});
-        })
-        .catch(function () {});
+        }).catch(function () {});
     } catch (e) {}
   }
 
@@ -76,15 +89,14 @@
     var db = getDb();
     if (!db || !roomId) return;
     var safe = String(roomId).replace(/[.#$\[\]]/g, '_');
-    if (_listeners[safe]) return; // 이미 구독 중
+    if (_listeners[safe]) return;
 
-    // 구독 시작 시 오래된 신호 정리 (앱 초기화 1회)
     _pruneSignals(safe);
 
-    var since = Date.now(); // 구독 시작 이후 신호만 (과거 메시지 알림 오탐 방지)
-    // 방별로 구독 시작 시각 기록 — Firebase reconnect 시 replay 차단에 사용
+    var since = Date.now();
     _subscribeStartTs[roomId] = since;
 
+    // startAt(since)로 서버에서 1차 필터, child_added에서 2차 필터
     var ref = db.ref('signals/' + safe).orderByChild('ts').startAt(since);
 
     var handler = ref.on('child_added', function (snap) {
@@ -92,53 +104,33 @@
         var val = snap.val();
         if (!val || !val.ts) return;
 
-        // ── Firebase reconnect replay 차단 ──────────────────────────────
-        // Firebase는 연결이 끊겼다 복구될 때 기존 리스너에 밀린 이벤트를 replay한다.
-        // 이때 val.ts 는 수 분~수 시간 전 값일 수 있다.
-        // 구독 최초 등록 시각(since) 이전 ts는 무조건 드롭한다.
-        var _startTs = _subscribeStartTs[roomId] || since;
-        if (val.ts < _startTs) return;
+        // Firebase reconnect replay 및 앱 재시작 오탐 차단
+        // max(구독시작시각, 마지막읽은ts) 이전 신호는 드롭
+        if (val.ts <= Math.max(_subscribeStartTs[roomId] || since, _seenTsMap[roomId] || 0)) return;
 
-        // 각 핸들러에 알림
         _attachedHandlers.forEach(function (h) {
           try {
+            // 내가 보낸 신호 스킵
             var myId = h.getMyId ? h.getMyId() : '';
-            // 내가 보낸 신호면 스킵
             if (myId && val.user_id && String(val.user_id) === String(myId)) return;
 
-            // 내가 마지막 쓴 시간 이후에 온 신호인지 확인
-            var myLastTs = _myTsMap[roomId] || 0;
-            if (val.ts <= myLastTs) return;
+            // 내가 보낸 메시지 ts 이전 스킵
+            if (val.ts <= (_myTsMap[roomId] || 0)) return;
 
-            // 이미 본 신호면 스킵
-            var seenTs = _seenTsMap[roomId] || 0;
-            if (val.ts <= seenTs) return;
-
-            // chat 종류 신호 → onMessage로 전달 (실시간 메시지 중계)
+            // chat 신호 → onMessage 전달
             if (h.onMessage && String(val.kind || 'chat') === 'chat') {
               h.onMessage({
-                roomId:   roomId,
-                mid:      val.mid || '',
-                user_id:  val.user_id || '',
-                nickname: val.nickname || '익명',
-                text:     val.text || '',
-                ts:       val.ts,
-                kind:     val.kind || 'chat'
+                roomId: roomId, mid: val.mid || '',
+                user_id: val.user_id || '', nickname: val.nickname || '익명',
+                text: val.text || '', ts: val.ts, kind: val.kind || 'chat'
               });
             }
 
-            // onNotify 직전에 seenTs를 다시 읽어 체크한다.
-            // onMessage 안에서 markSeenTs가 갱신됐을 수 있고,
-            // Firebase child_added와의 타이밍 레이스로 seenTs가 갱신돼 있을 수 있기 때문이다.
-            var seenTsNow = _seenTsMap[roomId] || 0;
-            if (val.ts <= seenTsNow) return;
+            // onMessage 안에서 markSeenTs가 갱신됐을 수 있으므로 재확인
+            if (val.ts <= (_seenTsMap[roomId] || 0)) return;
 
-            if (h.onNotify) {
-              h.onNotify({ roomId: roomId, ts: val.ts, user_id: val.user_id || '', signal: val });
-            }
-            if (h.onSignal) {
-              h.onSignal(roomId, val);
-            }
+            if (h.onNotify) h.onNotify({ roomId: roomId, ts: val.ts, user_id: val.user_id || '', signal: val });
+            if (h.onSignal) h.onSignal(roomId, val);
           } catch (e2) {}
         });
       } catch (e) {}
@@ -147,37 +139,30 @@
     _listeners[safe] = { ref: ref, handler: handler };
   }
 
-  /* 방 목록 동기화 */
-  function syncRooms(roomIds, tag) {
+  function syncRooms(roomIds) {
     if (!roomIds || !roomIds.length) return;
-    roomIds.forEach(function (rid) {
-      if (rid) _subscribeRoom(String(rid));
-    });
+    roomIds.forEach(function (rid) { if (rid) _subscribeRoom(String(rid)); });
   }
 
-  /* 핸들러 등록 */
   function attach(opts) {
     if (!opts) return;
     _attachedHandlers.push(opts);
     if (opts.db) setDb(opts.db);
   }
 
-  /* 내가 메시지 보낸 ts 기록 */
   function markMyTs(roomId, ts) {
     if (roomId) _myTsMap[String(roomId)] = ts || Date.now();
   }
 
-  /* 내가 메시지 확인한 ts 기록 */
   function markSeenTs(roomId, ts) {
-    if (roomId) _seenTsMap[String(roomId)] = ts || Date.now();
+    if (roomId) {
+      _seenTsMap[String(roomId)] = ts || Date.now();
+      _saveSeenTs();
+    }
   }
 
   window.SignalBus = {
-    push: push,
-    attach: attach,
-    syncRooms: syncRooms,
-    markMyTs: markMyTs,
-    markSeenTs: markSeenTs,
-    setDb: setDb
+    push: push, attach: attach, syncRooms: syncRooms,
+    markMyTs: markMyTs, markSeenTs: markSeenTs, setDb: setDb
   };
 })();
