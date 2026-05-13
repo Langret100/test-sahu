@@ -256,7 +256,7 @@
     var gf = document.getElementById("gameFrame");
     if (!gf) return;
 
-    var isOpen = gf.src && gf.src.indexOf("social-messenger") > -1 && gf.offsetParent !== null;
+    var isPreloaded = gf.src && gf.src.indexOf("social-messenger") > -1;
 
     function _send() {
       try {
@@ -267,19 +267,17 @@
       } catch (e) {}
     }
 
-    if (isOpen) {
-      // 메신저 이미 열려있음 → 바로 전달
+    if (isPreloaded) {
+      // 이미 로드된 상태 (화면에 보이든 숨겨져 있든) → overlay만 열고 바로 전달
+      if (typeof window.launchMessenger === "function") window.launchMessenger();
       _send();
     } else {
-      // 메신저 새로 열기 → onload 완료 후 전달
+      // 아직 로드 안 됨 → onload 완료 후 전달
       if (typeof window.launchMessenger === "function") {
-        var gf3 = document.getElementById("gameFrame");
-        if (gf3) {
-          gf3.addEventListener("load", function _onLoad() {
-            gf3.removeEventListener("load", _onLoad);
-            _send();
-          });
-        }
+        gf.addEventListener("load", function _onLoad() {
+          gf.removeEventListener("load", _onLoad);
+          _send();
+        });
         window.launchMessenger();
       }
     }
@@ -473,6 +471,27 @@
         }, 200);
       }
     } catch (_eUrlRoom) {}
+
+    // ── 메신저 iframe 백그라운드 프리로드 ──────────────────────────────────
+    // 사용자가 메신저를 열기 전에도 SignalBus가 Firebase에 구독하도록
+    // overlay는 hidden 유지하고 frame.src만 미리 세팅
+    // → 독립 메신저와 동일하게 앱 시작 직후부터 알림 수신 가능
+    try {
+      var _preloadTries = 0;
+      var _preloadTimer = setInterval(function () {
+        _preloadTries++;
+        var gf = document.getElementById("gameFrame");
+        if (!gf) { if (_preloadTries > 30) clearInterval(_preloadTimer); return; }
+        // 이미 src가 세팅됐으면 스킵
+        if (gf.src && gf.src.indexOf("social-messenger") > -1) {
+          clearInterval(_preloadTimer); return;
+        }
+        if (_preloadTries > 30) { clearInterval(_preloadTimer); return; }
+        clearInterval(_preloadTimer);
+        // overlay는 건드리지 않고 frame.src만 세팅 (숨긴 채로 로드)
+        gf.src = "games/social-messenger.html";
+      }, 300);
+    } catch (_ePre) {}
   }
 
   window.PwaManager = {

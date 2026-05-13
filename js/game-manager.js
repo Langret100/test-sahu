@@ -60,7 +60,10 @@
   function enterGame(url, bgmKey){
     if (!overlay || !frame) return;
     const isMessenger = (bgmKey === "messenger");
-    frame.src = url;
+    // 프리로드로 이미 같은 src가 세팅돼 있으면 재로드 생략 (SignalBus 구독 유지)
+    if (!frame.src || frame.src !== (new URL(url, location.href).href)) {
+      frame.src = url;
+    }
     overlay.classList.remove("hidden");
     try { overlay.dataset.mode = bgmKey || ""; } catch(e) {}
     // [X-only 닫기 버튼] 일부 게임(구구단/덧셈주사위/꿈틀이도형추적자/수학탐험대)에서만 외부 ✕ 표시

@@ -448,11 +448,12 @@ var NotifySetting = (function () {
       // TtsVoice 모듈 우선: games/ iframe 안에서는 parent에서 접근
       var tts = null;
       try {
-        if (window.parent && window.parent !== window && window.parent.TtsVoice) {
-          tts = window.parent.TtsVoice;
+        if (window.parent && window.parent !== window) {
+          tts = window.parent.ttsVoice || window.parent.TtsVoice || null;
         }
       } catch (e1) {}
       if (!tts && window.TtsVoice) tts = window.TtsVoice;
+      if (!tts && window.ttsVoice) tts = window.ttsVoice;
       if (tts && typeof tts.speak === "function") {
         tts.speak(text);
         return;
@@ -463,7 +464,8 @@ var NotifySetting = (function () {
         var u = new SpeechSynthesisUtterance(text);
         u.lang = "ko-KR";
         u.rate = 1.1;
-        synth.cancel();
+        if (synth.speaking || synth.pending) synth.cancel();
+        try { synth.resume(); } catch(e2) {}
         synth.speak(u);
       }
     } catch (e) {}

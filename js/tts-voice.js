@@ -159,45 +159,71 @@
     return chosen || null;
   }
 
+  // 가장 최근 speak 요청 ID (이전 요청은 무시)
+  let _speakSeq = 0;
+
   function speak(text){
     if (!hasSpeech || !enabled) return;
     if (!text || typeof text !== "string") return;
+
+    // voices가 아직 로드 안 됐으면 voiceschanged 후 재시도
+    if (!voicesCache.length) refreshVoices();
+    if (!voicesCache.length) {
+      const _once = { done: false };
+      const _retry = function() {
+        if (_once.done) return;
+        _once.done = true;
+        refreshVoices();
+        speak(text);
+      };
+      try {
+        window.speechSynthesis.addEventListener("voiceschanged", _retry, { once: true });
+        setTimeout(function() { if (!_once.done) { _once.done = true; refreshVoices(); speak(text); } }, 1000);
+      } catch(e) {}
+      return;
+    }
+
+    // 이 요청의 고유 번호 - 더 최신 요청이 오면 이 요청은 무시
+    const mySeq = ++_speakSeq;
+
+    function _doSpeak() {
+      // 더 최신 요청이 있으면 중단
+      if (mySeq !== _speakSeq) return;
+      try {
+        const synth = window.speechSynthesis;
+        try { synth.resume(); } catch(e) {}
+        const utter = new window.SpeechSynthesisUtterance(text);
+        const voice = pickVoiceForUtterance();
+        if (voice) utter.voice = voice;
+        utter.lang  = (voice && voice.lang) || "ko-KR";
+        utter.pitch = mapToneToPitch(toneValue);
+        utter.rate  = clampRange(
+          mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue),
+          SOUND_MIN, SOUND_MAX, 1.0
+        );
+        synth.speak(utter);
+      } catch(e) {}
+    }
+
     try {
-      // 이전 재생 중인 음성 정리
-      try { window.speechSynthesis.cancel(); } catch(e){}
-
-      // voices가 아직 로드 안 됐으면 voiceschanged 후 재시도
-      if (!voicesCache.length) refreshVoices();
-      if (!voicesCache.length) {
-        const _once = { done: false };
-        const _retry = function() {
-          if (_once.done) return;
-          _once.done = true;
-          refreshVoices();
-          speak(text);
-        };
-        try {
-          window.speechSynthesis.addEventListener("voiceschanged", _retry, { once: true });
-          setTimeout(function() { if (!_once.done) { _once.done = true; refreshVoices(); speak(text); } }, 1000);
-        } catch(e) {}
-        return;
+      const synth = window.speechSynthesis;
+      if (synth.speaking || synth.pending) {
+        synth.cancel();
+        // cancel 완료까지 폴링 (최대 300ms, 20ms 간격)
+        let _waited = 0;
+        const _wait = setInterval(function() {
+          _waited += 20;
+          if (!synth.speaking || _waited >= 300) {
+            clearInterval(_wait);
+            _doSpeak();
+          }
+        }, 20);
+      } else {
+        _doSpeak();
       }
-
-      setTimeout(function() {
-        try {
-          const utter = new window.SpeechSynthesisUtterance(text);
-          const voice = pickVoiceForUtterance();
-          if (voice) utter.voice = voice;
-          utter.lang = (voice && voice.lang) || "ko-KR";
-          utter.pitch = mapToneToPitch(toneValue);
-          utter.rate = clampRange(mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue), SOUND_MIN, SOUND_MAX, 1.0);
-          // Chrome 버그: speechSynthesis가 paused 상태로 빠지면 speak()해도 앞부분이 씹힘
-          // speak() 직전 resume()으로 강제 재개 → 첫 음절 씹힘 방지
-          try { window.speechSynthesis.resume(); } catch(e) {}
-          window.speechSynthesis.speak(utter);
-        } catch(e2){}
-      }, 150);
-    } catch(e){}
+    } catch(e) {
+      try { _doSpeak(); } catch(e2) {}
+    }
   }
 
   function refreshLabel(){

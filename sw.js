@@ -166,7 +166,17 @@ self.addEventListener("push", function (e) {
              || data.title
              || data.notification_title
              || "마이파이";
-  var body   = data.body     || data.notification_body  || "새 메시지가 있어요.";
+
+  // body: sender + 메시지 내용 조합
+  var _rawBody   = (data.data && data.data.body)   || data.body   || data.notification_body  || "";
+  var _rawSender = (data.data && data.data.sender) || data.sender || "";
+  var body;
+  if (_rawSender && _rawBody) {
+    body = _rawSender + " : " + _rawBody;
+  } else {
+    body = _rawBody || _rawSender || "새 메시지가 있어요.";
+  }
+  if (body.length > 100) body = body.slice(0, 97) + "...";
   var roomId = data.room_id  || (data.data && data.data.room_id) || "";
 
   /* 아이콘: scope 기준 절대경로 → 안드로이드 헤드업 알림에 표시됨 */
