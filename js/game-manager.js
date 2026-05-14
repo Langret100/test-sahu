@@ -153,7 +153,20 @@ if (chatPanel) chatPanel.classList.add("hidden");
     
     try { overlay.classList.remove("mode-messenger"); } catch(e) {}
 overlay.classList.add("hidden");
-    frame.src = "";
+    // 메신저는 src 유지 → SignalBus 구독 유지 → 알림 계속 수신
+    if (!wasMessenger) {
+      frame.src = "";
+      // 게임 닫은 후 메신저 백그라운드 프리로드 재실행 → SignalBus 구독 복구
+      setTimeout(function() {
+        try {
+          var ov2 = document.getElementById("gameOverlay");
+          if (ov2 && ov2.classList.contains("hidden") &&
+              frame.src.indexOf("social-messenger") === -1) {
+            frame.src = "games/social-messenger.html";
+          }
+        } catch(e) {}
+      }, 500);
+    }
     stopGameBgm();
 
     if (chatPanel) chatPanel.classList.remove("hidden");

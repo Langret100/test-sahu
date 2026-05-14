@@ -487,6 +487,9 @@
           clearInterval(_preloadTimer); return;
         }
         if (_preloadTries > 30) { clearInterval(_preloadTimer); return; }
+        // 다른 게임/메신저가 열려있으면 스킵 (강제 종료 방지)
+        var ov = document.getElementById("gameOverlay");
+        if (ov && !ov.classList.contains("hidden")) return;
         clearInterval(_preloadTimer);
         // overlay는 건드리지 않고 frame.src만 세팅 (숨긴 채로 로드)
         gf.src = "games/social-messenger.html";

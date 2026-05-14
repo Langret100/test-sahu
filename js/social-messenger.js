@@ -464,8 +464,7 @@ var NotifySetting = (function () {
         var u = new SpeechSynthesisUtterance(text);
         u.lang = "ko-KR";
         u.rate = 1.1;
-        if (synth.speaking || synth.pending) synth.cancel();
-        try { synth.resume(); } catch(e2) {}
+        synth.cancel();
         synth.speak(u);
       }
     } catch (e) {}

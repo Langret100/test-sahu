@@ -159,66 +159,34 @@
     return chosen || null;
   }
 
-  // 가장 최근 speak 요청 ID (이전 요청은 무시)
-  let _speakSeq = 0;
-
   function speak(text){
     if (!hasSpeech || !enabled) return;
     if (!text || typeof text !== "string") return;
 
-    // voices가 아직 로드 안 됐으면 voiceschanged 후 재시도
-    if (!voicesCache.length) refreshVoices();
-    if (!voicesCache.length) {
-      const _once = { done: false };
-      const _retry = function() {
-        if (_once.done) return;
-        _once.done = true;
-        refreshVoices();
-        speak(text);
-      };
-      try {
-        window.speechSynthesis.addEventListener("voiceschanged", _retry, { once: true });
-        setTimeout(function() { if (!_once.done) { _once.done = true; refreshVoices(); speak(text); } }, 1000);
-      } catch(e) {}
-      return;
-    }
-
-    // 이 요청의 고유 번호 - 더 최신 요청이 오면 이 요청은 무시
-    const mySeq = ++_speakSeq;
+    var synth = window.speechSynthesis;
 
     function _doSpeak() {
-      // 더 최신 요청이 있으면 중단
-      if (mySeq !== _speakSeq) return;
       try {
-        const synth = window.speechSynthesis;
-        try { synth.resume(); } catch(e) {}
-        const utter = new window.SpeechSynthesisUtterance(text);
-        const voice = pickVoiceForUtterance();
+        // utterance를 speak 직전에 생성 (cancel 이후 voice 바인딩 유지)
+        var utter = new window.SpeechSynthesisUtterance(text);
+        var voice = pickVoiceForUtterance();
         if (voice) utter.voice = voice;
         utter.lang  = (voice && voice.lang) || "ko-KR";
         utter.pitch = mapToneToPitch(toneValue);
-        utter.rate  = clampRange(
-          mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue),
-          SOUND_MIN, SOUND_MAX, 1.0
-        );
+        utter.rate  = clampRange(mapRateToUtteranceRate(rateValue) * mapToneRateFactor(toneValue), SOUND_MIN, SOUND_MAX, 1.0);
+        // paused 상태 해제 (Chrome 버그 방지)
+        try { synth.resume(); } catch(e) {}
         synth.speak(utter);
       } catch(e) {}
     }
 
     try {
-      const synth = window.speechSynthesis;
       if (synth.speaking || synth.pending) {
-        synth.cancel();
-        // cancel 완료까지 폴링 (최대 300ms, 20ms 간격)
-        let _waited = 0;
-        const _wait = setInterval(function() {
-          _waited += 20;
-          if (!synth.speaking || _waited >= 300) {
-            clearInterval(_wait);
-            _doSpeak();
-          }
-        }, 20);
+        // 재생 중일 때만 cancel → 50ms 대기 → 새 utterance로 speak
+        try { synth.cancel(); } catch(e) {}
+        setTimeout(_doSpeak, 50);
       } else {
+        // 재생 중 아닐 때는 딜레이 없이 바로 speak
         _doSpeak();
       }
     } catch(e) {
