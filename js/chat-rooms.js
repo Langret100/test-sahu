@@ -18,6 +18,133 @@
   var titleEl = null;
   var subEl = null;
 
+  /* ── 커스텀 모달 헬퍼 ──────────────────────────────────────
+   * 브라우저 기본 prompt/alert/confirm 대신 인앱 모달을 사용.
+   * 이유: 기본 dialog는 제목줄에 페이지 URL(script.google.com 등)을 노출함.
+   *
+   * _modal.alert(msg)              → Promise<void>
+   * _modal.confirm(msg)            → Promise<boolean>
+   * _modal.prompt(msg, placeholder)→ Promise<string|null>  (취소 시 null)
+   * _modal.promptTwo(msg1,ph1, msg2,ph2) → Promise<[string,string]|null>
+  ─────────────────────────────────────────────────────────── */
+  var _modal = (function () {
+    function _inject() {
+      if (document.getElementById("_crModalStyle")) return;
+      var s = document.createElement("style");
+      s.id = "_crModalStyle";
+      s.textContent = [
+        "#_crModalBackdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99990;",
+        "display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;}",
+        "#_crModalBox{background:#fff;border-radius:18px;padding:22px 20px 16px;width:100%;max-width:320px;",
+        "box-shadow:0 16px 48px rgba(0,0,0,.22);font-family:inherit;box-sizing:border-box;}",
+        "#_crModalMsg{font-size:14px;color:#111827;line-height:1.55;white-space:pre-wrap;margin-bottom:14px;}",
+        "#_crModalInput,#_crModalInput2{width:100%;box-sizing:border-box;border:1.5px solid #e5e7eb;",
+        "border-radius:10px;padding:9px 11px;font-size:14px;outline:none;margin-bottom:10px;}",
+        "#_crModalInput:focus,#_crModalInput2:focus{border-color:#6366f1;}",
+        "._crModalBtns{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}",
+        "._crModalBtns button{border:none;border-radius:10px;padding:8px 18px;font-size:13px;",
+        "font-weight:700;cursor:pointer;transition:opacity .1s;}",
+        "._crModalBtns button:active{opacity:.75;}",
+        "._crModalBtn-ok{background:#6366f1;color:#fff;}",
+        "._crModalBtn-cancel{background:#f3f4f6;color:#374151;}"
+      ].join("");
+      document.head.appendChild(s);
+    }
+
+    function _open(html, onReady) {
+      _inject();
+      var backdrop = document.createElement("div");
+      backdrop.id = "_crModalBackdrop";
+      backdrop.innerHTML = "<div id='_crModalBox'>" + html + "</div>";
+      document.body.appendChild(backdrop);
+      return new Promise(function (resolve) {
+        onReady(backdrop, resolve);
+      });
+    }
+
+    function alert(msg) {
+      return _open(
+        "<div id='_crModalMsg'>" + _esc(msg) + "</div>" +
+        "<div class='_crModalBtns'><button class='_crModalBtn-ok' id='_crOk'>확인</button></div>",
+        function (bd, resolve) {
+          bd.querySelector("#_crOk").addEventListener("click", function () {
+            bd.remove(); resolve();
+          });
+        }
+      );
+    }
+
+    function confirm(msg) {
+      return _open(
+        "<div id='_crModalMsg'>" + _esc(msg) + "</div>" +
+        "<div class='_crModalBtns'>" +
+        "<button class='_crModalBtn-cancel' id='_crCancel'>취소</button>" +
+        "<button class='_crModalBtn-ok' id='_crOk'>확인</button></div>",
+        function (bd, resolve) {
+          bd.querySelector("#_crOk").addEventListener("click",     function () { bd.remove(); resolve(true);  });
+          bd.querySelector("#_crCancel").addEventListener("click", function () { bd.remove(); resolve(false); });
+        }
+      );
+    }
+
+    function prompt(msg, placeholder, isPassword) {
+      return _open(
+        "<div id='_crModalMsg'>" + _esc(msg) + "</div>" +
+        "<input id='_crModalInput' type='" + (isPassword ? "password" : "text") + "' placeholder='" + _esc(placeholder || "") + "' autocomplete='off'/>" +
+        "<div class='_crModalBtns'>" +
+        "<button class='_crModalBtn-cancel' id='_crCancel'>취소</button>" +
+        "<button class='_crModalBtn-ok' id='_crOk'>확인</button></div>",
+        function (bd, resolve) {
+          var inp = bd.querySelector("#_crModalInput");
+          inp.focus();
+          inp.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { bd.remove(); resolve(inp.value); }
+            if (e.key === "Escape") { bd.remove(); resolve(null); }
+          });
+          bd.querySelector("#_crOk").addEventListener("click",     function () { bd.remove(); resolve(inp.value); });
+          bd.querySelector("#_crCancel").addEventListener("click", function () { bd.remove(); resolve(null); });
+        }
+      );
+    }
+
+    // 방 이름 + 비밀번호 두 줄 동시 입력 (방 생성 시 사용)
+    function promptTwo(msg1, ph1, msg2, ph2) {
+      return _open(
+        "<div id='_crModalMsg'>" + _esc(msg1) + "</div>" +
+        "<input id='_crModalInput' type='text' placeholder='" + _esc(ph1 || "") + "' autocomplete='off'/>" +
+        "<div class='_crModalMsg2' style='font-size:14px;color:#111827;line-height:1.55;margin:4px 0 14px;'>" + _esc(msg2) + "</div>" +
+        "<input id='_crModalInput2' type='password' placeholder='" + _esc(ph2 || "") + "' autocomplete='off'/>" +
+        "<div class='_crModalBtns'>" +
+        "<button class='_crModalBtn-cancel' id='_crCancel'>취소</button>" +
+        "<button class='_crModalBtn-ok' id='_crOk'>확인</button></div>",
+        function (bd, resolve) {
+          var inp1 = bd.querySelector("#_crModalInput");
+          var inp2 = bd.querySelector("#_crModalInput2");
+          inp1.focus();
+          bd.querySelector("#_crOk").addEventListener("click",     function () { bd.remove(); resolve([inp1.value, inp2.value]); });
+          bd.querySelector("#_crCancel").addEventListener("click", function () { bd.remove(); resolve(null); });
+          [inp1, inp2].forEach(function (inp) {
+            inp.addEventListener("keydown", function (e) {
+              if (e.key === "Escape") { bd.remove(); resolve(null); }
+            });
+          });
+          inp2.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") { bd.remove(); resolve([inp1.value, inp2.value]); }
+          });
+        }
+      );
+    }
+
+    // HTML 이스케이프 (XSS 방지)
+    function _esc(str) {
+      return String(str || "")
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    return { alert: alert, confirm: confirm, prompt: prompt, promptTwo: promptTwo };
+  })();
+
   var rooms = [];
   var activeRoomId = null;
   var activeRoom = null;
@@ -300,22 +427,22 @@
 
   // 1) 비번방 + 비멤버 → 비번 입력 후 입장 성공 시에만 활성화(실패하면 그대로)
   if (hasPwd && !isMember) {
-    var pwd = prompt("이 대화방은 비밀번호가 필요해요.", "");
-    if (pwd === null) return;
-
-    api({ mode: "social_room_enter", room_id: targetId, nickname: me, password: (pwd || "").trim() })
-      .then(function (json) {
-        if (!json || !json.ok) {
-          alert((json && json.error) || "입장에 실패했어요.");
-          return;
-        }
-        // 성공하면 즉시 활성화(중요: loadRooms 대기 금지)
-        setActiveRoom(targetId);
-        markVisitedRoom(targetId);
-        // 명단/라벨 반영은 백그라운드로 갱신
-        loadRooms();
-      })
-      .catch(function () { alert("입장에 실패했어요."); });
+    _modal.prompt("이 대화방은 비밀번호가 필요해요.", "비밀번호 입력", true).then(function (pwd) {
+      if (pwd === null) return;
+      api({ mode: "social_room_enter", room_id: targetId, nickname: me, password: (pwd || "").trim() })
+        .then(function (json) {
+          if (!json || !json.ok) {
+            _modal.alert((json && json.error) || "입장에 실패했어요.");
+            return;
+          }
+          // 성공하면 즉시 활성화(중요: loadRooms 대기 금지)
+          setActiveRoom(targetId);
+          markVisitedRoom(targetId);
+          // 명단/라벨 반영은 백그라운드로 갱신
+          loadRooms();
+        })
+        .catch(function () { _modal.alert("입장에 실패했어요."); });
+    });
     return;
   }
 
@@ -330,7 +457,7 @@
         // 예외적으로 실패하면 이전 방으로 복귀
         removeVisitedRoom(targetId);
         setActiveRoom(prevId);
-        alert((json && json.error) || "입장에 실패했어요.");
+        _modal.alert((json && json.error) || "입장에 실패했어요.");
         return;
       }
       loadRooms();
@@ -338,7 +465,7 @@
     .catch(function () {
       removeVisitedRoom(targetId);
       setActiveRoom(prevId);
-      alert("입장에 실패했어요.");
+      _modal.alert("입장에 실패했어요.");
     });
 });
 
@@ -470,11 +597,11 @@
 
     // 전체 대화방(global)은 나가기 불가
     if (room.can_leave === false || String(room.room_id || "") === "global" || room.is_global) {
-      alert("전체 대화방은 나갈 수 없어요.");
+      _modal.alert("전체 대화방은 나갈 수 없어요.");
       return;
     }
 
-    var ok = confirm("이 대화방에서 나갈까요?\n(나가면 더 이상 이 방의 대화를 볼 수 없어요)");
+    _modal.confirm("이 대화방에서 나갈까요?\n(나가면 더 이상 이 방의 대화를 볼 수 없어요)").then(function (ok) {
     if (!ok) return;
 
     api({
@@ -483,7 +610,7 @@
       nickname: safeNick()
     }).then(function (json) {
       if (!json || !json.ok) {
-        alert((json && json.error) || "나가기에 실패했어요.");
+        _modal.alert((json && json.error) || "나가기에 실패했어요.");
         return;
       }
       // 방문(입장) 기록 제거 + 미확인 점 제거
@@ -495,8 +622,9 @@
         setActiveRoom(null);
       });
     }).catch(function () {
-      alert("나가기에 실패했어요.");
+      _modal.alert("나가기에 실패했어요.");
     });
+    }); // _modal.confirm
   }
 
   function openCreateDialog() {
@@ -515,33 +643,36 @@
         }
       }
       if (count >= 3) {
-        alert("생성불가\n한 명당 최대 3개의 방만 만들 수 있어요.");
+        _modal.alert("생성불가\n한 명당 최대 3개의 방만 만들 수 있어요.");
         return;
       }
     } catch (e) {}
 
-    var roomName = prompt("새 대화방 이름(선택)\n비워두면 자동으로 만들어져요.", "");
-    if (roomName === null) return;
+    _modal.promptTwo(
+      "새 대화방 이름 (비워두면 자동 생성)", "대화방 이름",
+      "입장 비밀번호 (비워두면 공개방)", "비밀번호 없으면 비워두세요"
+    ).then(function (vals) {
+      if (vals === null) return;
+      var roomName = vals[0] || "";
+      var pwd = vals[1] || "";
 
-    var pwd = prompt("입장 비밀번호(선택)\n비워두면 공개방(누구나 목록에서 입장)으로 만들어져요.", "");
-    if (pwd === null) return;
-
-    api({
-      mode: "social_room_create",
-      nickname: safeNick(),
-      title: roomName || "",
-      room_name: roomName || "",
-      password: (pwd || "").trim()
-    }).then(function (json) {
-      if (!json || !json.ok) {
-        alert((json && json.error) || "대화방 생성에 실패했어요.");
-        return;
-      }
-      loadRooms().then(function () {
-        alert("대화방을 만들었어요.\n방 목록에서 선택해 입장해 주세요.");
+      api({
+        mode: "social_room_create",
+        nickname: safeNick(),
+        title: roomName,
+        room_name: roomName,
+        password: pwd.trim()
+      }).then(function (json) {
+        if (!json || !json.ok) {
+          _modal.alert((json && json.error) || "대화방 생성에 실패했어요.");
+          return;
+        }
+        loadRooms().then(function () {
+          _modal.alert("대화방을 만들었어요.\n방 목록에서 선택해 입장해 주세요.");
+        });
+      }).catch(function () {
+        _modal.alert("대화방 생성에 실패했어요.");
       });
-    }).catch(function () {
-      alert("대화방 생성에 실패했어요.");
     });
   }
 
