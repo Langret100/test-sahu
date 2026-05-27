@@ -61,7 +61,19 @@
     if (!overlay || !frame) return;
     const isMessenger = (bgmKey === "messenger");
     // 프리로드로 이미 같은 src가 세팅돼 있으면 재로드 생략 (SignalBus 구독 유지)
-    if (!frame.src || frame.src !== (new URL(url, location.href).href)) {
+    const targetHref = new URL(url, location.href).href;
+    const isSameSrc = frame.src && frame.src === targetHref;
+    if (!isSameSrc) {
+      // src를 바꾸기 전에 iframe을 투명하게 숨겨서
+      // 이전 페이지(메신저 프리로드 등)가 잠깐 보이는 현상을 방지
+      frame.style.opacity = "0";
+      frame.style.pointerEvents = "none";
+      var _onLoad = function() {
+        frame.removeEventListener("load", _onLoad);
+        frame.style.opacity = "";
+        frame.style.pointerEvents = "";
+      };
+      frame.addEventListener("load", _onLoad);
       frame.src = url;
     }
     overlay.classList.remove("hidden");
