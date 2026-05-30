@@ -1846,7 +1846,7 @@ function getCharacterCallAliases(name) {
     aliases.push("민서", "민소", "민슈", "민수야");
   }
 
-  aliases.push("마이파이", "마이파", "얘", "야", "저기", "있잖아", "잠깐");
+  aliases.push("마이파이", "얘", "야", "저기", "있잖아", "잠깐");
   return Array.from(new Set(aliases.filter(Boolean)));
 }
 
@@ -2368,7 +2368,7 @@ window.handleUserSubmit = async function handleUserSubmit() {
       try {
         if (window.currentCharacterName) __wakeNames.push(String(window.currentCharacterName));
       } catch (e) {}
-      __wakeNames.push("미나", "민아", "민하", "민수", "민서", "마이파이", "마이파", "얘", "야", "저기", "있잖아", "잠깐");
+      __wakeNames.push("미나", "민아", "민하", "민수", "민서", "마이파이", "얘", "야", "저기", "있잖아", "잠깐");
       const originalCompact = String(text || "").replace(/\s+/g, "");
       let commandText = String(text || "").trim();
       __wakeNames.forEach(function(name){
