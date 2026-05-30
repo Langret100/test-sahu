@@ -446,11 +446,15 @@ function getProjectRoot_() {
       var overlayOpen = false;
       if (overlay) overlayOpen = !overlay.classList.contains("hidden");
 
-      var frame = document.getElementById("gameFrame");
+      // frameHasSrc는 overlay가 실제로 열려있을 때만 체크
+      // (메신저 백그라운드 프리로드로 src가 항상 세팅되어 있어도 광고가 사라지지 않게)
       var frameHasSrc = false;
-      if (frame) {
-        var src = (frame.getAttribute("src") || "").trim();
-        frameHasSrc = !!src;
+      if (overlayOpen) {
+        var frame = document.getElementById("gameFrame");
+        if (frame) {
+          var src = (frame.getAttribute("src") || "").trim();
+          frameHasSrc = !!src;
+        }
       }
 
       return !(isGameMode || overlayOpen || frameHasSrc);

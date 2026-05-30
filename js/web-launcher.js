@@ -67,9 +67,6 @@
     if (typeof window.showBubble === "function") {
       try { window.showBubble(line); } catch (e) {}
     }
-    if (typeof window.logMessage === "function") {
-      try { window.logMessage("ghost", line); } catch (e) {}
-    }
   }
 
   function closeKnownPanels() {
@@ -118,7 +115,6 @@
 
     const silent = !!(options && options.silent);
     try { if (!silent && typeof window.setEmotion === "function") window.setEmotion("기쁨", line); } catch (e) {}
-    if (!silent) speak(line);
 
     let popup = null;
     try {
@@ -155,7 +151,6 @@
       : "기본화면으로 정리해둘게요.";
     const silent = !!(options && options.silent);
     try { if (!silent && typeof window.setEmotion === "function") window.setEmotion("인사", line); } catch (e) {}
-    if (!silent) speak(line);
     restoreDefaultScreen();
     return true;
   }
