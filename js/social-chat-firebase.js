@@ -52,13 +52,37 @@
   var toggleBtn = null;
 
   var socialChatMode = false;
-  var socialMessages = [];        // { user_id, nickname, text, ts }
+  var socialMessages = [];        // { key, mid, user_id, nickname, text, ts }
+  var seenKeys = {};              // 중복 제거용 (낙관적 렌더 + Firebase 수신 dedup)
   var viewCount = RECENT_DEFAULT;
   var initialLoadedFromSheet = false;  // (호환) 사용하지 않음
   var lastSheetLoadedAt = 0;
 
   var originalHandleUserSubmit = null;
   var waitingFirstReply = false;  // 내가 방금 쓴 글에 대한 첫 답글을 기다리는지 여부
+
+  // ── 메시지 배열 관리: 중복 제거 + local_ 낙관적 키 → Firebase 실키 교체 ──
+  function addMsg(msg) {
+    if (!msg || !msg.key) return false;
+    if (seenKeys[msg.key]) return false;
+    // 낙관적으로 추가했던 local_ 항목을 Firebase 실키로 교체
+    if (msg.mid) {
+      var lk = "local_" + msg.mid;
+      if (seenKeys[lk]) {
+        for (var i = socialMessages.length - 1; i >= 0; i--) {
+          if (socialMessages[i].key === lk) { socialMessages.splice(i, 1); break; }
+        }
+        delete seenKeys[lk];
+      }
+    }
+    seenKeys[msg.key] = true;
+    socialMessages.push(msg);
+    if (socialMessages.length > MAX_BUFFER) {
+      var dropped = socialMessages.splice(0, socialMessages.length - MAX_BUFFER);
+      dropped.forEach(function (m) { delete seenKeys[m.key]; });
+    }
+    return true;
+  }
 
   function ensureFirebase() {
     try {
@@ -79,7 +103,7 @@
         firebaseApp = firebase.initializeApp(SOCIAL_CHAT_FIREBASE_CONFIG);
       }
       firebaseDb = firebase.database();
-      firebaseRef = firebaseDb.ref("socialChat");
+      firebaseRef = firebaseDb.ref("messages/global");
       return firebaseDb;
     } catch (e) {
       console.error("[social-chat] Firebase 초기화 실패:", e);
@@ -126,50 +150,36 @@
   
 
 async function loadRecentMessagesFromSheet(force) {
-  // "마이파-톡"(전체 대화방) 화면은 시트에서 최신글을 불러옵니다.
-  // force=true면 항상 다시 로드합니다.
-
+  // Firebase messages/global 에서 최근 메시지 로드 (시트 대신)
   if (!force) {
-    // 너무 잦은 호출 방지(짧은 디바운스)
     if (Date.now() - lastSheetLoadedAt < 250) return;
   }
   lastSheetLoadedAt = Date.now();
 
-  if (typeof postToSheet !== "function") {
-    console.warn("[social-chat] postToSheet 함수가 없어 최근 메시지를 불러올 수 없습니다.");
+  var db = ensureFirebase();
+  if (!db || !firebaseRef) {
+    console.warn("[social-chat] Firebase 미연결 - 초기 메시지 로드 불가");
     return;
   }
 
   try {
-    var res = await postToSheet({
-      mode: "social_recent_room",
-      room_id: "global",
-      limit: MAX_BUFFER
-    });
-    if (!res || !res.ok) {
-      console.warn("[social-chat] 최근 메시지 응답이 올바르지 않습니다.");
-      return;
-    }
-    var text = await res.text();
-    var json;
-    try { json = JSON.parse(text); } catch (e) { return; }
-    if (!json || !json.messages) return;
-
+    var snap = await firebaseRef.orderByChild("ts").limitToLast(MAX_BUFFER).once("value");
     socialMessages = [];
-    (json.messages || []).forEach(function (row) {
-      if (!row) return;
-      var rawMsg = (row.text || row.chatlog || row.message || row.msg || "").toString();
+    seenKeys = {};
+    snap.forEach(function(child) {
+      var val = child.val() || {};
+      if (!val.text) return;
+      var key = child.key;
+      seenKeys[key] = true;
       socialMessages.push({
-        user_id: row.user_id || "",
-        nickname: row.nickname || "익명",
-        text: rawMsg,
-        ts: row.ts || row.timestamp || row.date || 0
+        key: key,
+        mid: val.mid || key,
+        user_id: val.user_id || "",
+        nickname: val.nickname || "익명",
+        text: val.text || "",
+        ts: val.ts || 0
       });
     });
-
-    if (socialMessages.length > MAX_BUFFER) {
-      socialMessages = socialMessages.slice(socialMessages.length - MAX_BUFFER);
-    }
 
     if (socialChatMode) {
       renderSocialMessages();
@@ -254,11 +264,10 @@ async function loadRecentMessagesFromSheet(force) {
   }
 
   function handleIncomingMessage_(msg) {
-    // 배열에 추가 (브라우저 메모리에서만 유지)
-    socialMessages.push(msg);
-    if (socialMessages.length > MAX_BUFFER) {
-      socialMessages.splice(0, socialMessages.length - MAX_BUFFER);
-    }
+    // addMsg 로 중복 제거 (낙관적 렌더된 local_ 항목과 dedup)
+    if (!addMsg(msg)) return;
+
+    // 배열 크기 제한은 addMsg 내부에서 처리됨
 
     // 내가 방금 쓴 글에 대해 첫 번째로 도착한 다른 사람의 답글이라면 읽어주기
     var myId = getSafeUserId();
@@ -300,6 +309,7 @@ async function loadRecentMessagesFromSheet(force) {
       var val = snapshot.val() || {};
       var msg = {
         key: snapshot.key,
+        mid: val.mid || "",
         user_id: val.user_id || "",
         nickname: val.nickname || "익명",
         text: val.text || "",
@@ -308,12 +318,7 @@ async function loadRecentMessagesFromSheet(force) {
 
       handleIncomingMessage_(msg);
 
-      // Firebase 에는 기록이 남지 않도록 즉시 삭제
-      try {
-        snapshot.ref.remove();
-      } catch (e) {
-        console.warn("[social-chat] snapshot 제거 중 오류:", e);
-      }
+      // messages/global 공유 경로 - 소셜 메신저와 공유하므로 삭제하지 않음
     });
   }
 
@@ -340,12 +345,20 @@ async function loadRecentMessagesFromSheet(force) {
     }
 
     var now = Date.now();
+    var mid = "m_" + now + "_" + Math.random().toString(16).slice(2);
     var payload = {
+      mid: mid,
       user_id: getSafeUserId(),
       nickname: getSafeNickname(),
       text: trimmed,
+      type: "text",
+      room_id: "global",
       ts: now
     };
+
+    // ── 낙관적 렌더: Firebase 응답을 기다리지 않고 즉시 화면에 표시 ──
+    addMsg({ key: "local_" + mid, mid: mid, user_id: payload.user_id, nickname: payload.nickname, text: trimmed, ts: now });
+    renderSocialMessages();
 
     waitingFirstReply = true;
 
@@ -395,6 +408,7 @@ function setModeSocial(enabled) {
     if (!chatPanel || !logEl) return;
 
     if (socialChatMode) {
+      document.body.classList.add("social-chat-active");
       chatPanel.classList.add("chat-panel-social");
       loadRecentMessagesFromSheet(true);
       renderSocialMessages();
@@ -407,6 +421,7 @@ function setModeSocial(enabled) {
         }
       } catch (e) {}
     } else {
+      document.body.classList.remove("social-chat-active");
       chatPanel.classList.remove("chat-panel-social");
       logEl.innerHTML = "";
       try {
@@ -419,6 +434,36 @@ function setModeSocial(enabled) {
       } catch (e) {}
     }
     updatePlusSocialButtonLabel();
+    // 방송방 오버레이에 모드 전환 알림
+    try { window.dispatchEvent(new CustomEvent("ghost:social-mode-changed")); } catch(e) {}
+
+    // sendBtn에 소셜챗 전송 리스너 직접 보완 (handleUserSubmit 패치 우회 방지)
+    _patchSendBtnDirect(enabled);
+  }
+
+  var _socialSendBtnHandler = null;
+  function _patchSendBtnDirect(enabled) {
+    var sb = document.getElementById("sendBtn");
+    var ui = document.getElementById("userInput");
+    if (!sb || !ui) return;
+    // 기존 직접 리스너 제거
+    if (_socialSendBtnHandler) {
+      sb.removeEventListener("click", _socialSendBtnHandler, true);
+      ui.removeEventListener("keydown", _socialSendBtnHandler, true);
+      _socialSendBtnHandler = null;
+    }
+    if (!enabled) return;
+    _socialSendBtnHandler = function(e) {
+      if (e.type === "keydown" && (e.key !== "Enter" || e.isComposing)) return;
+      e.stopImmediatePropagation();
+      var text = ui.value.trim();
+      if (!text) return;
+      ui.value = "";
+      sendSocialMessage(text);
+    };
+    // capture:true로 기존 핸들러보다 먼저 실행
+    sb.addEventListener("click", _socialSendBtnHandler, true);
+    ui.addEventListener("keydown", _socialSendBtnHandler, true);
   }
 
   function toggleMode() {
@@ -436,11 +481,47 @@ function setModeSocial(enabled) {
         return originalHandleUserSubmit();
       }
 
-      var inputEl = userInput || document.getElementById("userInput");
-      var text = "";
-      if (inputEl && typeof inputEl.value === "string") {
-        text = inputEl.value;
+      // 항상 DOM에서 직접 읽어서 값 누락 방지
+      var inputEl = document.getElementById("userInput");
+      var text = (inputEl ? inputEl.value : "").trim();
+      if (!text) return;
+
+      // 캐릭터 이름 호출 감지 (GhostCoreBridge 우선)
+      var charName = "";
+      try {
+        charName = (window.GhostCoreBridge && window.GhostCoreBridge.getCurrentCharacterName)
+          ? window.GhostCoreBridge.getCurrentCharacterName()
+          : "";
+      } catch(e) {}
+
+      var isCharCall = false;
+      if (charName) {
+        try {
+          var bridge = window.GhostCoreBridge;
+          var extracted = bridge ? bridge.extractCharacterCallText(text) : null;
+          isCharCall = (extracted !== null && extracted !== undefined);
+        } catch(e) {}
       }
+
+      if (isCharCall) {
+        var _db = ensureFirebase();
+        if (_db && firebaseRef && charName) {
+          window._socialChatBubbleHook = function(line) {
+            window._socialChatBubbleHook = null;
+            if (!line || !line.trim()) return;
+            firebaseRef.push({
+              user_id: "char_" + charName,
+              nickname: charName,
+              text: line.trim(),
+              ts: Date.now()
+            });
+          };
+        }
+        originalHandleUserSubmit();
+        sendSocialMessage(text);
+        return;
+      }
+
       sendSocialMessage(text);
     };
   }
