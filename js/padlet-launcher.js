@@ -70,10 +70,9 @@
 
       /* ===== 모바일 전용 — PC 값과 완전히 무관한 별도 수치 ===== */
       "@media(max-width:640px){" +
-      "#pl-panel{width:" + (MO_CONTENT_W - MO_OVERHANG) + "px;" +
+      "#pl-panel{width:min(" + MO_CONTENT_W + "px,96vw);" +
       "height:" + MO_HEIGHT_PCT + "%;" +
       "min-height:0;max-height:none;border-radius:14px;}" +
-      "#pl-frame{width:" + MO_CONTENT_W + "px;}" +
       "}" +
       "@supports (height:100dvh){" +
       "@media(max-width:640px){" +
@@ -102,7 +101,6 @@
     _frame = document.createElement("iframe");
     _frame.id = "pl-frame";
     _frame.allow = "camera;microphone;clipboard-read;clipboard-write;fullscreen;encrypted-media";
-    _frame.setAttribute("allowfullscreen", "");
     _frame.setAttribute("sandbox",
       "allow-scripts allow-forms allow-same-origin allow-popups allow-modals");
 
@@ -141,11 +139,51 @@
     catch(e) { _frame.src = URL; }
   }
 
+  function syncMobileScale() {
+    if (window.innerWidth > 640) {
+      _frame.style.transform = "none";
+      _frame.style.width = PC_CONTENT_W + "px";
+      _frame.style.left = "0";
+      return;
+    }
+    var panelW = _panel.getBoundingClientRect().width;
+    if (!panelW || panelW < 50) {
+      requestAnimationFrame(syncMobileScale);
+      return;
+    }
+    var frameW = MO_CONTENT_W + MO_OVERHANG; // 스크롤바 숨김용 오버행 포함 실제 iframe 폭
+    // 경계값 근처(예: 388~392px) 라운딩 오차로 오버행이 충분히 가려지지 않는 걸 방지하기 위해
+    // 콘텐츠 기준 폭에 미세 여유(2%)를 둬서 항상 패널 안에 확실히 들어가게 스케일
+    var safeContentW = MO_CONTENT_W * 1.05;
+    if (panelW >= safeContentW - 0.5) {
+      // 화면이 충분히 넓음: 스케일 없이, 오버행만큼 패널 밖으로 자연스럽게 넘침(클립됨)
+      _frame.style.transform = "none";
+      _frame.style.width = frameW + "px";
+      _frame.style.left = "0";
+    } else {
+      // 화면이 좁음: 여유를 둔 기준(safeContentW)으로 비율 계산해 축소
+      var scale = panelW / safeContentW;
+      _frame.style.width = frameW + "px";
+      _frame.style.transform = "scale(" + scale + ")";
+      _frame.style.transformOrigin = "top left";
+      // scale로 줄어든 후 실제 보이는 폭(frameW*scale)이 panelW보다 작으면
+      // 그 차이의 절반만큼 좌측으로 밀어서 좌우 중앙 정렬
+      var shownW = frameW * scale;
+      var offsetX = (panelW - shownW) / 2;
+      _frame.style.left = offsetX + "px";
+    }
+  }
+
   function open() {
     buildDOM();
     _frame.src = URL;
     _dim.classList.add("open");
     _bar.classList.add("open");
+    // display:none → flex 전환 직후 한 프레임만으로는 레이아웃이 아직
+    // 반영되지 않아 panelW가 부정확할 수 있어 두 프레임 뒤에 측정
+    requestAnimationFrame(function(){
+      requestAnimationFrame(syncMobileScale);
+    });
   }
 
   function close() {
@@ -156,6 +194,10 @@
 
   document.addEventListener("keydown", function(e){
     if (e.key === "Escape") close();
+  });
+
+  window.addEventListener("resize", function(){
+    if (_dim && _dim.classList.contains("open")) syncMobileScale();
   });
 
   function init() {
