@@ -1,12 +1,22 @@
-// padlet-launcher.js v12
+// padlet-launcher.js v21
+// PC 와 모바일을 완전히 독립된 상수/스타일로 분리 — 한쪽 수정이 다른 쪽에 영향 없음
 
 (function () {
   if (window.PadletLauncher) return;
 
-  var URL   = "https://zrr.kr/svrHqA";
-  var BTID  = "padletBtn";
-  var CLIP  = 56;
-  var BAR_H = 44;
+  var URL    = "https://zrr.kr/svrHqA";
+  var BTID   = "padletBtn";
+  var CLIP   = 0;
+  var BAR_H  = 44;
+
+  /* ── PC 전용 ── */
+  var PC_CONTENT_W = 410;  // 패들렛에게 줄 iframe 폭
+  var PC_OVERHANG  = 16;   // 스크롤바 숨김용 오버행
+
+  /* ── 모바일 전용 (PC와 완전 독립) ── */
+  var MO_CONTENT_W = 390;  // 모바일은 패들렛 기본 모바일 폭에 가깝게
+  var MO_OVERHANG  = 16;   // 모바일도 스크롤바 숨김 동일 적용
+  var MO_HEIGHT_PCT = 92;  // 화면 높이의 92%만 사용, 위아래 중앙 정렬
 
   function addStyle() {
     if (document.getElementById("pl-s")) return;
@@ -23,29 +33,26 @@
       "#padletBtn svg{filter:drop-shadow(0 0 7px rgba(255,200,120,.7));}" +
 
       "#pl-dim{display:none;position:fixed;inset:0;z-index:9100;" +
-      "background:rgba(0,0,0,.6);align-items:center;justify-content:center;}" +
+      "background:rgba(0,0,0,.6);align-items:center;justify-content:center;" +
+      "overflow:hidden;}" +
       "#pl-dim.open{display:flex;}" +
 
-      /* 패널: 모바일 폭 390px 고정 → 패들렛이 모바일로 렌더링 */
+      /* ===== PC 기본값 ===== */
       "#pl-panel{position:relative;" +
-      "width:min(390px,96vw);height:88vh;" +
+      "width:" + (PC_CONTENT_W - PC_OVERHANG) + "px;height:88vh;" +
       "max-height:960px;min-height:400px;" +
       "border-radius:14px;overflow:hidden;" +
       "box-shadow:0 8px 48px rgba(0,0,0,.55);}" +
 
-      /* 클립 래퍼 */
       "#pl-clip{position:absolute;" +
       "top:" + BAR_H + "px;left:0;right:0;bottom:0;" +
       "overflow:hidden;}" +
 
-      /* iframe: 패널 폭에 꽉 채움, 스크롤바 없음 */
       "#pl-frame{position:absolute;" +
       "top:-" + CLIP + "px;left:0;" +
-      "width:100%;height:calc(100% + " + CLIP + "px);" +
-      "border:none;display:block;" +
-      "overflow:hidden;}" +
+      "width:" + PC_CONTENT_W + "px;height:calc(100% + " + CLIP + "px);" +
+      "border:none;display:block;}" +
 
-      /* 버튼 바 */
       "#pl-bar{position:absolute;top:0;left:0;right:0;" +
       "height:" + BAR_H + "px;z-index:10;" +
       "display:none;align-items:center;justify-content:space-between;" +
@@ -61,9 +68,17 @@
       ".pl-btn:hover{background:rgba(255,255,255,.22);}" +
       ".pl-btn:active{transform:scale(.9);}" +
 
+      /* ===== 모바일 전용 — PC 값과 완전히 무관한 별도 수치 ===== */
       "@media(max-width:640px){" +
-      "#pl-dim{align-items:stretch;justify-content:stretch;}" +
-      "#pl-panel{width:100%;height:100%;min-height:0;max-height:none;border-radius:0;}" +
+      "#pl-panel{width:" + (MO_CONTENT_W - MO_OVERHANG) + "px;" +
+      "height:" + MO_HEIGHT_PCT + "%;" +
+      "min-height:0;max-height:none;border-radius:14px;}" +
+      "#pl-frame{width:" + MO_CONTENT_W + "px;}" +
+      "}" +
+      "@supports (height:100dvh){" +
+      "@media(max-width:640px){" +
+      "#pl-panel{height:" + MO_HEIGHT_PCT + "dvh;}" +
+      "}" +
       "}";
     document.head.appendChild(el);
   }
