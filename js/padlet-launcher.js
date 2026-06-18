@@ -160,6 +160,8 @@
       _frame.style.transform = "none";
       _frame.style.width = frameW + "px";
       _frame.style.left = "0";
+      _frame.style.top = "0";
+      _frame.style.height = "100%";
     } else {
       // 화면이 좁음: 여유를 둔 기준(safeContentW)으로 비율 계산해 축소
       var scale = panelW / safeContentW;
@@ -171,6 +173,11 @@
       var shownW = frameW * scale;
       var offsetX = (panelW - shownW) / 2;
       _frame.style.left = offsetX + "px";
+      // 세로: scale로 줄어든 만큼 height를 미리 키워서 보상
+      // (클립 영역 높이를 scale로 나누면, 줄어든 후 정확히 클립 영역만큼 차게 됨)
+      var clipH = _clip.getBoundingClientRect().height;
+      _frame.style.height = (clipH / scale) + "px";
+      _frame.style.top = "0";
     }
   }
 
