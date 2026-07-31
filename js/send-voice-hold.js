@@ -1,226 +1,224 @@
-/* ============================================================
-   [send-voice-hold.js] 보내기 버튼 '꾹 누르기' 음성인식
-   ------------------------------------------------------------
-   - #msgSendBtn을 짧게 누르면 기존처럼 텍스트 전송(기존 click 핸들러 유지)
-   - '꾹 누르기'(기본 450ms) 시 Web Speech API로 음성인식을 시작하고,
-     손을 떼면 인식을 종료합니다.
-   - 인식된 텍스트는 #msgInput에 입력(또는 추가)됩니다.
-
-   [제거 시 함께 삭제/정리할 요소]
-   1) games/social-messenger.html 에서 본 스크립트 include 제거
-      - <script src="../js/send-voice-hold.js"></script>
-   ============================================================ */
-
+// 실시간-챗(마이파이) 보내기 버튼 길게 누르기 음성 입력
 (function () {
-  var HOLD_MS = 450;
+  "use strict";
 
-  function toast(text) {
+  var HOLD_MS = 420;
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function ensureVoiceStatus(input) {
+    var status = document.getElementById("msgVoiceInputStatus");
+    if (status) return status;
+    status = document.createElement("div");
+    status.id = "msgVoiceInputStatus";
+    status.setAttribute("aria-live", "polite");
+    status.style.cssText = "display:none;position:absolute;left:8px;bottom:calc(100% + 4px);z-index:20;width:max-content;max-width:calc(100% - 16px);white-space:nowrap;writing-mode:horizontal-tb;font-size:12px;line-height:1.3;opacity:.82;pointer-events:none;";
+    var wrap = input && input.closest ? input.closest(".msg-input-wrap") : null;
+    var host = (wrap && wrap.parentElement) || (input && input.parentElement) || document.body;
     try {
-      var el = document.getElementById("msgStatus");
-      if (!el) return;
-      el.textContent = text || "";
-      el.classList.add("show");
-      clearTimeout(el.__toastTimer);
-      el.__toastTimer = setTimeout(function () {
-        el.classList.remove("show");
-      }, 1200);
-    } catch (e) {}
+      var pos = window.getComputedStyle(host).position;
+      if (!pos || pos === "static") host.style.position = "relative";
+    } catch (e) { host.style.position = "relative"; }
+    host.appendChild(status);
+    return status;
   }
 
-  function getRecognitionCtor() {
-    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  }
+  function setup() {
+    var button = document.getElementById("msgSendBtn");
+    var input = document.getElementById("msgInput");
+    if (!button || !input || button.__voiceHoldBound) return;
+    button.__voiceHoldBound = true;
 
-  function bind() {
-    var sendBtn = document.getElementById("msgSendBtn");
-    var inputEl = document.getElementById("msgInput");
-    if (!sendBtn || !inputEl) return;
-
-    var Rec = getRecognitionCtor();
-    var recognition = null;
-    var holding = false;
     var holdTimer = null;
-    var voiceActive = false;
-    var ignoreNextClick = false;
-    var originalLabel = sendBtn.textContent || "보내기";
+    var held = false;
+    var recognition = null;
+    var listening = false;
+    var longPressTriggered = false;
+    var suppressClickUntil = 0;
+    var baseText = "";
+    var finalText = "";
+    var interimText = "";
+    var inputLockTimer = null;
+    var oldReadOnly = false;
+    var oldInputMode = null;
+    var voiceInputLocked = false;
+    var finalized = false;
+    var voiceStatus = ensureVoiceStatus(input);
 
-    function setBtnListening(on) {
-      // 버튼 라벨은 바꾸지 않습니다(보내기 버튼 유지).
-      // 필요 시 스타일만 토글(기본 CSS엔 영향 없음)
-      try {
-        if (on) sendBtn.classList.add("voice-listening");
-        else sendBtn.classList.remove("voice-listening");
-      } catch (e) {}
+    function setVoiceStatus(message) {
+      voiceStatus.textContent = message || "";
+      voiceStatus.style.display = message ? "block" : "none";
+    }
+
+    function showStatus(message) {
+      setVoiceStatus(message);
+      clearTimeout(voiceStatus.__hideTimer);
+      if (message) voiceStatus.__hideTimer = setTimeout(function () { setVoiceStatus(""); }, 2200);
+    }
+
+    function lockInputForVoice() {
+      clearTimeout(inputLockTimer);
+      if (!voiceInputLocked) {
+        oldReadOnly = !!input.readOnly;
+        oldInputMode = input.getAttribute("inputmode");
+      }
+      voiceInputLocked = true;
+      input.readOnly = true;
+      input.setAttribute("inputmode", "none");
+      try { input.blur(); } catch (e) {}
+    }
+
+    function unlockInputAfterVoice(delay) {
+      clearTimeout(inputLockTimer);
+      inputLockTimer = setTimeout(function () {
+        try { input.blur(); } catch (e) {}
+        input.readOnly = oldReadOnly;
+        if (oldInputMode == null) input.removeAttribute("inputmode");
+        else input.setAttribute("inputmode", oldInputMode);
+        voiceInputLocked = false;
+      }, delay == null ? 1200 : delay);
     }
 
 
-    function startVoice() {
-      if (!Rec) {
-        toast("이 브라우저는 음성인식을 지원하지 않아요.");
-        return;
-      }
-
-      // 새 인스턴스로 시작(일부 환경에서 재사용 시 오류 방지)
-      try {
-        recognition = new Rec();
-      } catch (e) {
-        toast("음성인식을 시작할 수 없어요.");
-        return;
-      }
-
-      voiceActive = true;
-      ignoreNextClick = true;
-      setBtnListening(true);
-      toast("🎤 듣는 중… (손을 떼면 종료)");
-
-      try {
-        recognition.lang = "ko-KR";
-        recognition.interimResults = true;
-        recognition.continuous = true;
-      } catch (e) {}
-
-      var interim = "";
-      var finalText = "";
-
-      recognition.onresult = function (event) {
-        try {
-          interim = "";
-          for (var i = event.resultIndex; i < event.results.length; i++) {
-            var res = event.results[i];
-            if (!res || !res[0]) continue;
-            var txt = String(res[0].transcript || "").trim();
-            if (!txt) continue;
-            if (res.isFinal) finalText += (finalText ? " " : "") + txt;
-            else interim += (interim ? " " : "") + txt;
-          }
-
-          // 입력창에는 interim+final을 미리 보여줌(확정되면 final로 정리)
-          var base = inputEl.__voiceBaseText;
-          if (typeof base !== "string") base = inputEl.value || "";
-          var merged = (base ? base + " " : "") + (finalText || interim);
-          inputEl.value = merged.trim();
-        } catch (e) {}
-      };
-
-      recognition.onerror = function (e) {
-        try {
-          // not-allowed / service-not-allowed / network 등
-          toast("음성인식이 차단되었거나 사용할 수 없어요.");
-        } catch (e2) {}
-      };
-
-      recognition.onend = function () {
-        // 사용자가 손을 떼어서 stop()한 경우에도 onend로 들어옴
-        voiceActive = false;
-        setBtnListening(false);
-
-        // (요구사항) 손을 떼면 인식된 텍스트를 그대로 전송
-        try {
-          var textToSend = (inputEl.value || "").trim();
-          if (textToSend) {
-            // touchend 후 따라오는 click 전송은 차단하되,
-            // 여기서만(음성 종료 시) 프로그램matic 전송을 허용
-            sendBtn.__voiceBypassClick = true;
-            try { sendBtn.click(); } catch (e0) {}
-            setTimeout(function () {
-              try { sendBtn.__voiceBypassClick = false; } catch (e1) {}
-            }, 0);
-          }
-        } catch (eSend) {}
-
-        try {
-          inputEl.__voiceBaseText = null;
-          inputEl.focus();
-        } catch (e) {}
-
-        // 클릭 전송 방지 플래그는 잠깐 유지
+    function finalizeAndSend() {
+      if (finalized) return;
+      finalized = true;
+      listening = false;
+      recognition = null;
+      button.classList.remove("voice-listening");
+      setVoiceStatus("");
+      var spokenText = (finalText + (interimText ? (finalText ? " " : "") + interimText : "")).trim();
+      var text = ((baseText ? baseText + " " : "") + spokenText).trim();
+      if (text && longPressTriggered) {
+        // 전송 직전에만 값을 넣고 바로 전송한다. 인식 중에는 입력창을 건드리지 않는다.
+        input.value = text;
+        try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch (e0) {}
+        button.__voiceProgrammaticSend = true;
+        try { button.click(); } catch (e) {}
         setTimeout(function () {
-          ignoreNextClick = false;
-        }, 350);
+          button.__voiceProgrammaticSend = false;
+          try { input.blur(); } catch (e2) {}
+        }, 0);
+      }
+      unlockInputAfterVoice(1350);
+    }
+
+    function start() {
+      if (!held || listening) return;
+      longPressTriggered = true;
+      finalized = false;
+      suppressClickUntil = Date.now() + 1500;
+      lockInputForVoice();
+
+      if (!SpeechRecognition) {
+        showStatus("이 브라우저에서는 음성 인식을 지원하지 않아요.");
+        unlockInputAfterVoice(300);
+        return;
+      }
+
+      baseText = String(input.value || "").trim();
+      finalText = "";
+      interimText = "";
+
+      try {
+        recognition = new SpeechRecognition();
+        recognition.lang = "ko-KR";
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+      } catch (e) {
+        showStatus("음성 인식을 시작할 수 없어요.");
+        unlockInputAfterVoice(300);
+        return;
+      }
+
+      recognition.onstart = function () {
+        listening = true;
+        button.classList.add("voice-listening");
+        setVoiceStatus("🎤 음성인식 중…");
+      };
+      recognition.onresult = function (event) {
+        interimText = "";
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          var result = event.results[i];
+          if (!result || !result[0]) continue;
+          var text = String(result[0].transcript || "").trim();
+          if (!text) continue;
+          if (result.isFinal) finalText += (finalText ? " " : "") + text;
+          else interimText += (interimText ? " " : "") + text;
+        }
+        // 인식 중에는 기존 채팅 입력창을 변경하지 않는다.
+      };
+      recognition.onerror = function (event) {
+        var code = event && event.error ? event.error : "";
+        if (code === "not-allowed" || code === "service-not-allowed") showStatus("마이크 권한을 허용해 주세요.");
+        else if (code === "audio-capture") showStatus("마이크 장치를 찾지 못했어요.");
+        else if (code !== "aborted" && code !== "no-speech") showStatus("음성 인식이 끊겼어요.");
+      };
+      recognition.onend = function () {
+        listening = false;
+        button.classList.remove("voice-listening");
+        recognition = null;
+        // 엔진 종료가 손 떼기보다 빨라도 자동 전송하지 않는다.
+        if (!held) finalizeAndSend();
       };
 
-      try {
-        // 현재 입력값을 base로 잡고, 인식 텍스트를 이어붙임
-        inputEl.__voiceBaseText = inputEl.value || "";
-      } catch (e) {}
-
-      try {
-        recognition.start();
-      } catch (e) {
-        // 이미 시작된 상태 등
-        toast("음성인식을 시작할 수 없어요.");
-        voiceActive = false;
-        setBtnListening(false);
+      try { recognition.start(); }
+      catch (e) {
+        recognition = null;
+        setVoiceStatus("");
+        showStatus("음성 인식을 시작하지 못했어요.");
+        unlockInputAfterVoice(300);
       }
     }
 
-    function stopVoice() {
-      try {
-        if (recognition && voiceActive) {
-          recognition.stop();
+    function pressStart(event) {
+      if (event && event.button != null && event.button !== 0) return;
+      if (held) return;
+      held = true;
+      finalized = false;
+      longPressTriggered = false;
+      clearTimeout(holdTimer);
+      holdTimer = setTimeout(start, HOLD_MS);
+      try { button.setPointerCapture && event.pointerId != null && button.setPointerCapture(event.pointerId); } catch (e) {}
+    }
+
+    function pressEnd(event) {
+      if (!held && !listening && !longPressTriggered) return;
+      if (longPressTriggered && event) {
+        try { event.preventDefault(); } catch (e) {}
+        try { event.stopPropagation(); } catch (e) {}
+      }
+      held = false;
+      clearTimeout(holdTimer);
+      if (longPressTriggered) {
+        if (recognition) {
+          try { recognition.stop(); } catch (e) { finalizeAndSend(); }
+        } else {
+          finalizeAndSend();
         }
-      } catch (e) {
-        // ignore
       }
     }
 
-    function onPressStart(ev) {
-      // 마우스 우클릭 등 제외
-      try {
-        if (ev && ev.button != null && ev.button !== 0) return;
-      } catch (e) {}
+    input.addEventListener("focus", function () {
+      if (!voiceInputLocked) return;
+      setTimeout(function () { try { input.blur(); } catch (e) {} }, 0);
+    }, true);
 
-      holding = true;
-      clearTimeout(holdTimer);
+    button.addEventListener("pointerdown", pressStart);
+    button.addEventListener("pointerup", pressEnd);
+    button.addEventListener("pointercancel", pressEnd);
+    button.addEventListener("contextmenu", function (e) { if (held) e.preventDefault(); });
 
-      holdTimer = setTimeout(function () {
-        if (!holding) return;
-        startVoice();
-      }, HOLD_MS);
-    }
-
-    function onPressEnd() {
-      holding = false;
-      clearTimeout(holdTimer);
-
-      // 길게 눌러 음성모드가 켜졌다면, 손을 떼면 종료
-      if (voiceActive) {
-        stopVoice();
-      }
-    }
-
-    // (중요) long-press 후 발생하는 click 전송을 캡처 단계에서 차단
-    sendBtn.addEventListener(
-      "click",
-      function (ev) {
-        if (!ignoreNextClick) return;
-        try { if (sendBtn.__voiceBypassClick) return; } catch (e0) {}
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (typeof ev.stopImmediatePropagation === "function") ev.stopImmediatePropagation();
-      },
-      true
-    );
-
-    // Pointer Events 우선
-    sendBtn.addEventListener("pointerdown", onPressStart);
-    sendBtn.addEventListener("pointerup", onPressEnd);
-    sendBtn.addEventListener("pointercancel", onPressEnd);
-    sendBtn.addEventListener("pointerleave", onPressEnd);
-
-    // 구형 모바일(혹시) 대비
-    sendBtn.addEventListener("touchstart", onPressStart, { passive: true });
-    sendBtn.addEventListener("touchend", onPressEnd);
-    sendBtn.addEventListener("touchcancel", onPressEnd);
-
-    // 마우스(데스크톱) 대비
-    sendBtn.addEventListener("mousedown", onPressStart);
-    document.addEventListener("mouseup", onPressEnd);
+    button.addEventListener("click", function (event) {
+      if (button.__voiceProgrammaticSend) return;
+      if (!longPressTriggered && Date.now() >= suppressClickUntil) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      longPressTriggered = false;
+    }, true);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bind);
-  } else {
-    bind();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", setup);
+  else setup();
 })();
